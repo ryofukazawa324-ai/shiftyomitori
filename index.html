@@ -143,42 +143,298 @@
       font-size: 12px;
       line-height: 1.6;
     }
+
+    .dashboard {
+      display: grid;
+      gap: 16px;
+      margin-top: 18px;
+    }
+    .panel {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .panel h3 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+    .todayTop {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 16px;
+      background: #111827;
+      color: #fff;
+      border-radius: 14px;
+      margin-top: 14px;
+    }
+    .todayDate {
+      font-size: 18px;
+      font-weight: 800;
+    }
+    .myShift {
+      font-size: 14px;
+      font-weight: 800;
+      background: rgba(255,255,255,.14);
+      padding: 7px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .todoItem {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 9px 0;
+      border-bottom: 1px solid #f0f2f4;
+    }
+    .todoItem:last-child { border-bottom: 0; }
+    .todoItem input[type="checkbox"] {
+      margin-top: 4px;
+      transform: scale(1.15);
+    }
+    .todoItem.done span {
+      text-decoration: line-through;
+      color: #9ca3af;
+    }
+    .todoText {
+      flex: 1;
+      line-height: 1.5;
+    }
+    .addRow {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .addRow input, textarea {
+      width: 100%;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      padding: 12px;
+      font: inherit;
+      background: #fff;
+    }
+    .addRow button {
+      width: auto;
+      margin: 0;
+      padding: 12px 16px;
+    }
+    textarea {
+      min-height: 92px;
+      resize: vertical;
+    }
+    .mini {
+      color: #6b7280;
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: 8px;
+    }
+    .dangerBtn {
+      margin-top: 10px;
+      background: #f3f4f6;
+      color: #374151;
+    }
+    .searchArea {
+      margin-top: 24px;
+      padding-top: 22px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+
+    .dataDeleteArea {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid #e5e7eb;
+    }
+    .dataDeleteArea h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+    }
+    .deleteNote {
+      margin: 0 0 12px;
+      color: #6b7280;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .deleteDataBtn {
+      background: #fff;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+    }
+
   </style>
+
+<style>
+  .topbar {
+    display:flex; gap:8px; margin:14px 0 18px;
+  }
+  .modeBtn {
+    flex:1; margin:0; background:#eef2f7; color:#111827;
+  }
+  .modeBtn.active { background:#111827; color:#fff; }
+  .dateRow {
+    display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end;
+    margin-bottom:16px;
+  }
+  .dateRow button { width:auto; margin:0; }
+  .reportHeader {
+    font-weight:800; font-size:18px; line-height:1.6;
+    margin:4px 0 18px; padding:14px 16px; border-radius:14px;
+    background:#111827; color:#fff;
+  }
+  .sectionCard {
+    margin:14px 0; padding:15px; border:1px solid #e5e7eb;
+    border-radius:14px; background:#fff;
+  }
+  .sectionCard h3 { margin:0 0 10px; font-size:17px; }
+  .sectionCard textarea,
+  .sectionCard input[type="text"],
+  .sectionCard input[type="number"] {
+    width:100%; border:1px solid #d1d5db; border-radius:10px;
+    padding:11px; font:inherit; background:#fff;
+  }
+  .sectionCard textarea { min-height:88px; resize:vertical; }
+  .twoCol { display:grid; grid-template-columns:1fr; gap:10px; }
+  .inlineLabel { font-size:13px; color:#6b7280; margin-bottom:5px; display:block; }
+  .viewBox {
+    white-space:pre-wrap; line-height:1.75; font-size:15px;
+    border:1px solid #e5e7eb; border-radius:14px; padding:16px;
+    background:#fff;
+  }
+  .copyBtn { margin-top:14px; }
+  .small { color:#6b7280; font-size:12px; line-height:1.5; }
+  .shiftInfo {
+    margin:8px 0 0; color:#6b7280; font-size:13px;
+  }
+  .earlyHidden { display:none !important; }
+  .dataDeleteArea {
+    margin-top:28px; padding-top:20px; border-top:1px solid #e5e7eb;
+  }
+  .deleteDataBtn {
+    background:#fff; color:#b91c1c; border:1px solid #fecaca;
+  }
+  @media (min-width: 620px) {
+    .twoCol { grid-template-columns:1fr 1fr; }
+  }
+</style>
+
 </head>
 
 <body>
   <main class="wrap">
     <section class="card">
-      <h1>シフト検索</h1>
-      <p class="sub">Excelシフト表から、指定日のスタッフ名と勤務区分を表示します。</p>
+      <h1>日報ダッシュボード</h1>
+      <p class="sub">日付ごとに編集し、完成した内容をそのままコピーできます。</p>
 
-      <div id="savedBox" class="saved" hidden>
-        <div class="savedTitle">現在保存中のシフト表</div>
-        <div id="savedName" class="savedName"></div>
-        <div id="savedDate" class="savedDate"></div>
+      <div class="dateRow">
+        <div>
+          <label for="targetDate">日付</label>
+          <input id="targetDate" type="date">
+        </div>
+        <button id="todayBtn" type="button">今日</button>
       </div>
 
-      <label class="fileButton" for="excelFile" id="fileLabel">シフト表を登録</label>
-      <input id="excelFile" type="file" accept=".xlsx,.xls,.xlsm">
+      <div id="reportHeader" class="reportHeader"></div>
+      <div id="shiftInfo" class="shiftInfo">シフト：読み込み待ち</div>
 
-      <div class="field">
-        <label for="targetDate">② 日付</label>
-        <input id="targetDate" type="date">
+      <div class="topbar">
+        <button id="viewModeBtn" class="modeBtn" type="button">表示モード</button>
+        <button id="editModeBtn" class="modeBtn active" type="button">編集モード</button>
       </div>
 
-      <button id="searchBtn" disabled>この日のシフトを表示</button>
+      <section id="viewMode" hidden>
+        <div id="viewText" class="viewBox"></div>
+        <button id="copyBtn" class="copyBtn" type="button">全文をコピー</button>
+      </section>
 
-      <div id="status" class="status">Excelファイルを選択してください。</div>
+      <section id="editMode">
+        <div class="sectionCard">
+          <h3>◆今月目標</h3>
+          <textarea id="monthlyGoal"></textarea>
+          <div class="small">月ごとに保存します。</div>
+        </div>
 
-      <div id="result" class="result" hidden>
-        <h2 id="resultTitle"></h2>
-        <div id="staffList" class="list"></div>
+        <div class="sectionCard">
+          <h3>◆本日のやること</h3>
+          <textarea id="dailyTodo"></textarea>
+          <div class="small">初期文言を入れた状態で、日付ごとに編集できます。</div>
+        </div>
+
+        <div id="earlyTodoCard" class="sectionCard">
+          <h3>◆早番todo</h3>
+          <textarea id="earlyTodo"></textarea>
+          <div class="small">選択日のシフトが早番のときだけ表示・出力します。</div>
+        </div>
+
+        <div class="sectionCard">
+          <h3>◆出勤前目標</h3>
+          <textarea id="beforeGoal"></textarea>
+        </div>
+
+        <div class="sectionCard">
+          <h3>◆販買実績</h3>
+          <div class="twoCol">
+            <div>
+              <label class="inlineLabel" for="virtualOrder">仮想受注込（万円）</label>
+              <input id="virtualOrder" type="text" inputmode="decimal" placeholder="">
+            </div>
+            <div>
+              <label class="inlineLabel" for="salesModels">販買商品型番</label>
+              <input id="salesModels" type="text" placeholder="">
+            </div>
+          </div>
+        </div>
+
+        <div class="sectionCard">
+          <h3>◆BBアンケート</h3>
+          <input id="bbSurvey" type="text" inputmode="numeric" placeholder="">
+        </div>
+
+        <div class="sectionCard">
+          <h3>◆ヒトコト所感</h3>
+          <textarea id="oneWord"></textarea>
+        </div>
+
+        <div class="sectionCard">
+          <h3>◆改善期待行動</h3>
+          <textarea id="improve"></textarea>
+        </div>
+
+        <div class="sectionCard">
+          <h3>◆まごついたところ</h3>
+          <textarea id="stumble"></textarea>
+        </div>
+
+        <div class="sectionCard">
+          <h3>◆所感</h3>
+          <textarea id="impression"></textarea>
+        </div>
+
+        <div class="sectionCard">
+          <h3>シフト表</h3>
+          <div id="savedBox" class="saved" hidden>
+            <div class="savedTitle">現在保存中のシフト表</div>
+            <div id="savedName" class="savedName"></div>
+            <div id="savedDate" class="savedDate"></div>
+          </div>
+          <label class="fileButton" for="excelFile" id="fileLabel">シフト表を登録</label>
+          <input id="excelFile" type="file" accept=".xlsx,.xls,.xlsm">
+          <div id="status" class="status">初回だけシフト表Excelを登録してください。</div>
+        </div>
+      </section>
+
+      <div class="dataDeleteArea">
+        <h3>端末内データ管理</h3>
+        <p class="small">
+          日報の保存データを削除できます。登録済みのシフト表Excelは残します。
+        </p>
+        <button id="deleteReportDataBtn" class="deleteDataBtn" type="button">日報の保存データを削除</button>
       </div>
 
       <p class="note">
-        シフト表はこの端末のブラウザ内に保存します。次回から自動で読み込みます。
-        新しい月のシフトに変える時だけ「シフト表を更新」を押してください。
-        Safariのサイトデータを削除した場合などは再登録が必要です。
+        日報はこの端末のブラウザ内に保存します。Safariのサイトデータを削除すると消える場合があります。
       </p>
     </section>
   </main>
@@ -186,34 +442,232 @@
 <script>
 (() => {
   const SHEET_NAME = "3）入力用";
+  const SELF_SEARCH_NAME = "深澤";
+  const DISPLAY_NAME = "深澤椋";
+  const STORE_PREFIX = "workReport:";
+
+  const DEFAULTS = {
+    monthlyGoal: "販買以外の業務を部門でできるようにしていく\nお客様に向かう行動を常にしタイミングに振り回されないようにする",
+    dailyTodo: "pos点検、退勤時AV情報POS締め",
+    earlyTodo: "ゲーム在庫確認、展示デモオンPCコーナーからゲームコーナー前レジ横のモニター左右まで\npcコーナーpop更新、古物確認"
+  };
+
+  const FIELDS = [
+    "dailyTodo","earlyTodo","beforeGoal","virtualOrder","salesModels",
+    "bbSurvey","oneWord","improve","stumble","impression"
+  ];
+
+  const dateInput = document.getElementById("targetDate");
+  const reportHeader = document.getElementById("reportHeader");
+  const shiftInfo = document.getElementById("shiftInfo");
+  const viewModeBtn = document.getElementById("viewModeBtn");
+  const editModeBtn = document.getElementById("editModeBtn");
+  const viewMode = document.getElementById("viewMode");
+  const editMode = document.getElementById("editMode");
+  const viewText = document.getElementById("viewText");
+  const copyBtn = document.getElementById("copyBtn");
+  const todayBtn = document.getElementById("todayBtn");
+  const earlyTodoCard = document.getElementById("earlyTodoCard");
+
+  const monthlyGoal = document.getElementById("monthlyGoal");
+  const dailyTodo = document.getElementById("dailyTodo");
+  const earlyTodo = document.getElementById("earlyTodo");
+  const beforeGoal = document.getElementById("beforeGoal");
+  const virtualOrder = document.getElementById("virtualOrder");
+  const salesModels = document.getElementById("salesModels");
+  const bbSurvey = document.getElementById("bbSurvey");
+  const oneWord = document.getElementById("oneWord");
+  const improve = document.getElementById("improve");
+  const stumble = document.getElementById("stumble");
+  const impression = document.getElementById("impression");
 
   const fileInput = document.getElementById("excelFile");
-  const dateInput = document.getElementById("targetDate");
-  const searchBtn = document.getElementById("searchBtn");
+  const fileLabel = document.getElementById("fileLabel");
+  const savedBox = document.getElementById("savedBox");
+  const savedName = document.getElementById("savedName");
+  const savedDate = document.getElementById("savedDate");
   const statusBox = document.getElementById("status");
-  const resultBox = document.getElementById("result");
-  const resultTitle = document.getElementById("resultTitle");
-  const staffList = document.getElementById("staffList");
 
   const DB_NAME = "ShiftSearchDB";
   const DB_VERSION = 1;
   const STORE_NAME = "files";
   const RECORD_KEY = "currentShift";
 
-  const fileLabel = document.getElementById("fileLabel");
-  const savedBox = document.getElementById("savedBox");
-  const savedName = document.getElementById("savedName");
-  const savedDate = document.getElementById("savedDate");
-
-  let workbook = null;
   let rows = null;
   let headerRowIndex = -1;
   let nameColIndex = -1;
   let codeColIndex = -1;
   let dateColumns = [];
+  let selectedShift = "";
 
-  dateInput.value = localISODate(new Date());
+  function localISODate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,"0");
+    const day = String(d.getDate()).padStart(2,"0");
+    return `${y}-${m}-${day}`;
+  }
 
+  function cleanText(v) {
+    if (v === null || v === undefined) return "";
+    return String(v).trim();
+  }
+
+  function isPersonCode(value) {
+    if (typeof value === "number") return Number.isFinite(value);
+    if (typeof value !== "string") return false;
+    return /^\d+$/.test(value.trim());
+  }
+
+  function excelSerialToISO(serial) {
+    const parsed = XLSX.SSF.parse_date_code(Number(serial));
+    if (!parsed) return null;
+    return `${parsed.y}-${String(parsed.m).padStart(2,"0")}-${String(parsed.d).padStart(2,"0")}`;
+  }
+
+  function valueToISO(value) {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return localISODate(value);
+    if (typeof value === "number" && value > 30000 && value < 80000) return excelSerialToISO(value);
+    if (typeof value === "string") {
+      const s = value.trim();
+      const m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+      if (m) return `${m[1]}-${String(m[2]).padStart(2,"0")}-${String(m[3]).padStart(2,"0")}`;
+    }
+    return null;
+  }
+
+  function dateKey() { return `${STORE_PREFIX}day:${dateInput.value}`; }
+  function monthKey() { return `${STORE_PREFIX}month:${dateInput.value.slice(0,7)}`; }
+
+  function getDayData() {
+    try {
+      const raw = localStorage.getItem(dateKey());
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return {
+      dailyTodo: DEFAULTS.dailyTodo,
+      earlyTodo: DEFAULTS.earlyTodo,
+      beforeGoal: "",
+      virtualOrder: "",
+      salesModels: "",
+      bbSurvey: "",
+      oneWord: "",
+      improve: "",
+      stumble: "",
+      impression: ""
+    };
+  }
+
+  function saveDayData() {
+    const data = {};
+    FIELDS.forEach(id => data[id] = document.getElementById(id).value);
+    localStorage.setItem(dateKey(), JSON.stringify(data));
+    renderView();
+  }
+
+  function getMonthlyGoal() {
+    return localStorage.getItem(monthKey()) ?? DEFAULTS.monthlyGoal;
+  }
+
+  function loadForm() {
+    const data = getDayData();
+    FIELDS.forEach(id => document.getElementById(id).value = data[id] ?? "");
+    monthlyGoal.value = getMonthlyGoal();
+    updateHeader();
+    updateShiftForSelectedDate();
+    renderView();
+  }
+
+  function updateHeader() {
+    const d = new Date(`${dateInput.value}T00:00:00`);
+    reportHeader.textContent = `${d.getMonth()+1}月${d.getDate()}日　ミッテン府中店　情報部門　${DISPLAY_NAME}`;
+  }
+
+  function isEarlyShift() {
+    return selectedShift.includes("早");
+  }
+
+  function renderView() {
+    const d = new Date(`${dateInput.value}T00:00:00`);
+    const header = `${d.getMonth()+1}月${d.getDate()}日　ミッテン府中店　情報部門　${DISPLAY_NAME}`;
+    const lines = [
+      header,
+      "",
+      "◆今月目標",
+      monthlyGoal.value,
+      "",
+      "◆本日のやること",
+      dailyTodo.value
+    ];
+
+    if (isEarlyShift()) {
+      lines.push("", "◆早番todo", earlyTodo.value);
+    }
+
+    lines.push(
+      "",
+      "◆出勤前目標",
+      beforeGoal.value,
+      "",
+      "◆販買実績",
+      `　仮想受注込　　　→　${virtualOrder.value ? virtualOrder.value : ""}万円`,
+      `　販買商品型番　→　${salesModels.value}`,
+      "",
+      `◆BBアンケート　${bbSurvey.value}件`,
+      "",
+      "◆ヒトコト所感",
+      oneWord.value,
+      "",
+      "◆改善期待行動",
+      improve.value,
+      "",
+      "◆まごついたところ",
+      stumble.value,
+      "",
+      "◆所感",
+      impression.value
+    );
+
+    viewText.textContent = lines.join("\n");
+  }
+
+  function setMode(mode) {
+    const isView = mode === "view";
+    viewMode.hidden = !isView;
+    editMode.hidden = isView;
+    viewModeBtn.classList.toggle("active", isView);
+    editModeBtn.classList.toggle("active", !isView);
+    if (isView) renderView();
+  }
+
+  viewModeBtn.addEventListener("click", () => setMode("view"));
+  editModeBtn.addEventListener("click", () => setMode("edit"));
+
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(viewText.textContent);
+      const old = copyBtn.textContent;
+      copyBtn.textContent = "コピーしました";
+      setTimeout(() => copyBtn.textContent = old, 1400);
+    } catch {
+      alert("コピーできませんでした。表示文を長押ししてコピーしてください。");
+    }
+  });
+
+  todayBtn.addEventListener("click", () => {
+    dateInput.value = localISODate(new Date());
+    loadForm();
+  });
+
+  dateInput.addEventListener("change", loadForm);
+
+  FIELDS.forEach(id => {
+    document.getElementById(id).addEventListener("input", saveDayData);
+  });
+
+  monthlyGoal.addEventListener("input", () => {
+    localStorage.setItem(monthKey(), monthlyGoal.value);
+    renderView();
+  });
 
   function openDB() {
     return new Promise((resolve, reject) => {
@@ -251,279 +705,143 @@
     });
   }
 
-  async function parseAndUse(data, fileName, savedAt = null) {
-    workbook = XLSX.read(data, { type: "array", cellDates: true, cellFormula: true });
-    const sheet = workbook.Sheets[SHEET_NAME];
-    if (!sheet) throw new Error(`「${SHEET_NAME}」シートがありません。`);
-
-    rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
-    const layout = findLayout(rows);
-    headerRowIndex = layout.headerRow;
-    nameColIndex = layout.nameCol;
-    codeColIndex = layout.codeCol;
-    dateColumns = layout.dates;
-
-    setDateRange(dateColumns);
-    searchBtn.disabled = false;
-
-    savedBox.hidden = false;
-    savedName.textContent = fileName;
-    savedDate.textContent = savedAt
-      ? `保存日時：${new Date(savedAt).toLocaleString("ja-JP")}`
-      : "";
-    fileLabel.textContent = "シフト表を更新";
-
-    const firstDate = dateColumns[0].iso.replaceAll("-", "/");
-    const lastDate = dateColumns[dateColumns.length - 1].iso.replaceAll("-", "/");
-    setStatus(`保存済みシフトを使用中：${firstDate} ～ ${lastDate}`, "ok");
-    showShift();
-  }
-
-  function localISODate(d) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  }
-
-  function excelSerialToISO(serial) {
-    const parsed = XLSX.SSF.parse_date_code(Number(serial));
-    if (!parsed) return null;
-    return `${parsed.y}-${String(parsed.m).padStart(2,"0")}-${String(parsed.d).padStart(2,"0")}`;
-  }
-
-  function valueToISO(value) {
-    if (value instanceof Date && !Number.isNaN(value.getTime())) {
-      return localISODate(value);
-    }
-
-    if (typeof value === "number" && value > 30000 && value < 80000) {
-      return excelSerialToISO(value);
-    }
-
-    if (typeof value === "string") {
-      const s = value.trim();
-
-      // YYYY/M/D, YYYY-M-D
-      let m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-      if (m) {
-        return `${m[1]}-${String(m[2]).padStart(2,"0")}-${String(m[3]).padStart(2,"0")}`;
-      }
-    }
-
-    return null;
-  }
-
-  function isPersonCode(value) {
-    if (typeof value === "number") return Number.isFinite(value);
-    if (typeof value !== "string") return false;
-    return /^\d+$/.test(value.trim());
-  }
-
-  function cleanText(value) {
-    if (value === null || value === undefined) return "";
-    return String(value).trim();
-  }
-
-  function setStatus(message, type = "") {
-    statusBox.className = `status ${type}`.trim();
-    statusBox.textContent = message;
-  }
-
   function findLayout(data) {
-    let foundHeader = -1;
-    let foundNameCol = -1;
-    let foundCodeCol = -1;
+    let foundHeader = -1, foundNameCol = -1, foundCodeCol = -1;
 
-    // 「担当者名」を含む行をヘッダーとして探す
-    for (let r = 0; r < Math.min(data.length, 100); r++) {
+    for (let r = 0; r < Math.min(data.length,100); r++) {
       const row = data[r] || [];
-      for (let c = 0; c < row.length; c++) {
-        const text = cleanText(row[c]);
-        if (text.includes("担当者名")) {
-          foundHeader = r;
-          foundNameCol = c;
-          break;
+      for (let c=0; c<row.length; c++) {
+        if (cleanText(row[c]).includes("担当者名")) {
+          foundHeader=r; foundNameCol=c; break;
         }
       }
       if (foundHeader >= 0) break;
     }
+    if (foundHeader < 0) throw new Error("「担当者名」の列を見つけられませんでした。");
 
-    if (foundHeader < 0) {
-      throw new Error("「担当者名」の列を見つけられませんでした。");
+    const header = data[foundHeader] || [];
+    for (let c=0; c<header.length; c++) {
+      if (cleanText(header[c]) === "CD") { foundCodeCol=c; break; }
+    }
+    if (foundCodeCol < 0) foundCodeCol = Math.max(0, foundNameCol-2);
+
+    const dateMap = new Map();
+    for (let r=Math.max(0,foundHeader-2); r<=Math.min(data.length-1,foundHeader+2); r++) {
+      const row=data[r]||[];
+      for (let c=0; c<row.length; c++) {
+        const iso=valueToISO(row[c]);
+        if (iso && !dateMap.has(iso)) dateMap.set(iso,c);
+      }
+    }
+    const dates=[...dateMap.entries()].map(([iso,col])=>({iso,col})).sort((a,b)=>a.iso.localeCompare(b.iso));
+    if (!dates.length) throw new Error("日付の列を見つけられませんでした。");
+    return {headerRow:foundHeader,nameCol:foundNameCol,codeCol:foundCodeCol,dates};
+  }
+
+  async function parseAndUse(data, fileName, savedAt=null) {
+    const workbook = XLSX.read(data, {type:"array", cellDates:true, cellFormula:true});
+    const sheet = workbook.Sheets[SHEET_NAME];
+    if (!sheet) throw new Error(`「${SHEET_NAME}」シートがありません。`);
+    rows = XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null});
+    const layout=findLayout(rows);
+    headerRowIndex=layout.headerRow;
+    nameColIndex=layout.nameCol;
+    codeColIndex=layout.codeCol;
+    dateColumns=layout.dates;
+
+    savedBox.hidden=false;
+    savedName.textContent=fileName;
+    savedDate.textContent=savedAt ? `保存日時：${new Date(savedAt).toLocaleString("ja-JP")}` : "";
+    fileLabel.textContent="シフト表を更新";
+    setStatus("保存済みシフトを使用中", "ok");
+    updateShiftForSelectedDate();
+  }
+
+  function setStatus(message,type="") {
+    statusBox.className=`status ${type}`.trim();
+    statusBox.textContent=message;
+  }
+
+  function updateShiftForSelectedDate() {
+    selectedShift = "";
+    if (!rows) {
+      shiftInfo.textContent="シフト：読み込み待ち";
+      earlyTodoCard.classList.add("earlyHidden");
+      renderView();
+      return;
     }
 
-    // 同じヘッダー行から「CD」列を探す
-    const header = data[foundHeader] || [];
-    for (let c = 0; c < header.length; c++) {
-      if (cleanText(header[c]) === "CD") {
-        foundCodeCol = c;
+    const dateInfo = dateColumns.find(d=>d.iso===dateInput.value);
+    if (!dateInfo) {
+      shiftInfo.textContent="シフト：この日付はシフト表にありません";
+      earlyTodoCard.classList.add("earlyHidden");
+      renderView();
+      return;
+    }
+
+    for (let r=headerRowIndex+1; r<rows.length; r++) {
+      const row=rows[r]||[];
+      const name=cleanText(row[nameColIndex]);
+      const code=row[codeColIndex];
+      if (!name || !isPersonCode(code)) continue;
+      if (name.includes(SELF_SEARCH_NAME)) {
+        selectedShift=cleanText(row[dateInfo.col]);
         break;
       }
     }
 
-    // 今回のExcelではCD列がスタッフ行を判定するのに使える
-    if (foundCodeCol < 0) {
-      foundCodeCol = Math.max(0, foundNameCol - 2);
-    }
-
-    // 日付列を探す。
-    // ヘッダー行と、その前後2行も見ることで月ごとの微妙なズレに耐える
-    const dateMap = new Map();
-    const startR = Math.max(0, foundHeader - 2);
-    const endR = Math.min(data.length - 1, foundHeader + 2);
-
-    for (let r = startR; r <= endR; r++) {
-      const row = data[r] || [];
-      for (let c = 0; c < row.length; c++) {
-        const iso = valueToISO(row[c]);
-        if (iso && !dateMap.has(iso)) {
-          dateMap.set(iso, c);
-        }
-      }
-    }
-
-    const foundDates = [...dateMap.entries()]
-      .map(([iso, col]) => ({ iso, col }))
-      .sort((a, b) => a.iso.localeCompare(b.iso));
-
-    if (!foundDates.length) {
-      throw new Error("日付の列を見つけられませんでした。");
-    }
-
-    return {
-      headerRow: foundHeader,
-      nameCol: foundNameCol,
-      codeCol: foundCodeCol,
-      dates: foundDates
-    };
-  }
-
-  function setDateRange(dates) {
-    const first = dates[0].iso;
-    const last = dates[dates.length - 1].iso;
-    dateInput.min = first;
-    dateInput.max = last;
-
-    const today = localISODate(new Date());
-    if (dates.some(d => d.iso === today)) {
-      dateInput.value = today;
-    } else {
-      dateInput.value = first;
-    }
+    shiftInfo.textContent = selectedShift ? `シフト：${selectedShift}` : "シフト：該当なし";
+    earlyTodoCard.classList.toggle("earlyHidden", !isEarlyShift());
+    renderView();
   }
 
   fileInput.addEventListener("change", async () => {
-    resultBox.hidden = true;
-    searchBtn.disabled = true;
-
-    const file = fileInput.files?.[0];
+    const file=fileInput.files?.[0];
     if (!file) return;
-
     try {
       setStatus("Excelを読み込んでいます…");
-      const data = await file.arrayBuffer();
-
-      await parseAndUse(data, file.name);
-      await saveShiftFile(data, file.name);
-
-      const now = new Date();
-      savedDate.textContent = `保存日時：${now.toLocaleString("ja-JP")}`;
-      setStatus("シフト表を保存しました。次回から自動で読み込みます。", "ok");
-    } catch (err) {
+      const data=await file.arrayBuffer();
+      await parseAndUse(data,file.name);
+      await saveShiftFile(data,file.name);
+      const now=new Date();
+      savedDate.textContent=`保存日時：${now.toLocaleString("ja-JP")}`;
+      setStatus("シフト表を保存しました。次回から自動で読み込みます。","ok");
+    } catch(err) {
       console.error(err);
-      setStatus(`読み込みエラー：${err.message}`, "error");
+      setStatus(`読み込みエラー：${err.message}`,"error");
     } finally {
-      fileInput.value = "";
+      fileInput.value="";
     }
   });
 
-  searchBtn.addEventListener("click", showShift);
-  dateInput.addEventListener("change", () => {
-    if (rows) showShift();
+  document.getElementById("deleteReportDataBtn").addEventListener("click", () => {
+    const ok = confirm("日報の保存データをすべて削除します。\nシフト表Excelは残ります。\n削除してよいですか？");
+    if (!ok) return;
+
+    const keys=[];
+    for (let i=0;i<localStorage.length;i++) {
+      const key=localStorage.key(i);
+      if (key && key.startsWith(STORE_PREFIX)) keys.push(key);
+    }
+    keys.forEach(key=>localStorage.removeItem(key));
+    loadForm();
+    alert(`日報データを削除しました（${keys.length}件）。`);
   });
 
-  function showShift() {
-    if (!rows) return;
+  dateInput.value = localISODate(new Date());
+  loadForm();
+  setMode("edit");
 
-    const target = dateInput.value;
-    const dateInfo = dateColumns.find(d => d.iso === target);
-
-    if (!dateInfo) {
-      resultBox.hidden = false;
-      resultTitle.textContent = "該当する日付がありません";
-      staffList.innerHTML = `<div class="empty">このExcelには ${target} の列がありません。</div>`;
-      return;
-    }
-
-    const staff = [];
-
-    for (let r = headerRowIndex + 1; r < rows.length; r++) {
-      const row = rows[r] || [];
-      const name = cleanText(row[nameColIndex]);
-      const code = row[codeColIndex];
-      const shift = cleanText(row[dateInfo.col]);
-
-      // スタッフ名があり、CDが数値の実スタッフ行だけ対象
-      if (!name || !isPersonCode(code)) continue;
-
-      // 勤務区分が空欄なら、その日は一覧に出さない
-      if (!shift) continue;
-
-      // 明確な休暇・休日表記は「出勤スタッフ」から除外
-      const leaveWords = [
-        "休", "公休", "有休", "有給", "希望休",
-        "欠勤", "休日", "振休", "代休"
-      ];
-      if (leaveWords.some(word => shift === word || shift.includes(word))) continue;
-
-      staff.push({ name, shift });
-    }
-
-    const d = new Date(`${target}T00:00:00`);
-    const weekday = ["日","月","火","水","木","金","土"][d.getDay()];
-    const title = `${d.getMonth()+1}月${d.getDate()}日（${weekday}）の出勤スタッフ`;
-
-    resultTitle.innerHTML = `${title} <span class="count">${staff.length}名</span>`;
-    resultBox.hidden = false;
-
-    if (!staff.length) {
-      staffList.innerHTML = `<div class="empty">勤務が入っているスタッフが見つかりませんでした。</div>`;
-      return;
-    }
-
-    staffList.innerHTML = staff.map(person => `
-      <div class="row">
-        <div class="name">${escapeHTML(person.name)}</div>
-        <div class="shift">${escapeHTML(person.shift)}</div>
-      </div>
-    `).join("");
-  }
-
-  function escapeHTML(text) {
-    return String(text)
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  // ページを開いたとき、前回保存したExcelを自動読込
   (async () => {
     try {
-      const saved = await loadSavedShiftFile();
-      if (!saved) {
-        setStatus("初回だけ、シフト表Excelを登録してください。");
-        return;
-      }
-      await parseAndUse(saved.data, saved.fileName, saved.savedAt);
-    } catch (err) {
+      const saved=await loadSavedShiftFile();
+      if (!saved) return;
+      await parseAndUse(saved.data,saved.fileName,saved.savedAt);
+    } catch(err) {
       console.error(err);
-      setStatus("保存済みシフトを読み込めませんでした。シフト表を再登録してください。", "error");
+      setStatus("保存済みシフトを読み込めませんでした。シフト表を再登録してください。","error");
     }
   })();
-
 })();
 </script>
 </body>
