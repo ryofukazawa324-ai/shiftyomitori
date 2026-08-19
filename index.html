@@ -41,7 +41,6 @@
       font-weight: 700;
       margin-bottom: 8px;
     }
-    input[type="file"],
     input[type="date"] {
       width: 100%;
       padding: 13px;
@@ -50,6 +49,29 @@
       background: white;
       font-size: 16px;
     }
+    input[type="file"] { display: none; }
+    .fileButton {
+      width: 100%;
+      border-radius: 12px;
+      padding: 14px 18px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      display: block;
+      background: #eef2f7;
+      color: #111827;
+    }
+    .saved {
+      margin: 14px 0;
+      padding: 14px;
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+    }
+    .savedTitle { font-size: 13px; color: #6b7280; margin-bottom: 4px; }
+    .savedName { font-weight: 700; word-break: break-all; }
+    .savedDate { font-size: 12px; color: #6b7280; margin-top: 4px; }
     button {
       width: 100%;
       border: 0;
@@ -130,10 +152,14 @@
       <h1>シフト検索</h1>
       <p class="sub">Excelシフト表から、指定日のスタッフ名と勤務区分を表示します。</p>
 
-      <div class="field">
-        <label for="excelFile">① シフト表Excel</label>
-        <input id="excelFile" type="file" accept=".xlsx,.xls,.xlsm">
+      <div id="savedBox" class="saved" hidden>
+        <div class="savedTitle">現在保存中のシフト表</div>
+        <div id="savedName" class="savedName"></div>
+        <div id="savedDate" class="savedDate"></div>
       </div>
+
+      <label class="fileButton" for="excelFile" id="fileLabel">シフト表を登録</label>
+      <input id="excelFile" type="file" accept=".xlsx,.xls,.xlsm">
 
       <div class="field">
         <label for="targetDate">② 日付</label>
@@ -150,7 +176,9 @@
       </div>
 
       <p class="note">
-        Excelファイルはブラウザ内で読み取ります。このページのコードでは、選択したExcelをサーバーへアップロードしません。
+        シフト表はこの端末のブラウザ内に保存します。次回から自動で読み込みます。
+        新しい月のシフトに変える時だけ「シフト表を更新」を押してください。
+        Safariのサイトデータを削除した場合などは再登録が必要です。
       </p>
     </section>
   </main>
@@ -167,6 +195,16 @@
   const resultTitle = document.getElementById("resultTitle");
   const staffList = document.getElementById("staffList");
 
+  const DB_NAME = "ShiftSearchDB";
+  const DB_VERSION = 1;
+  const STORE_NAME = "files";
+  const RECORD_KEY = "currentShift";
+
+  const fileLabel = document.getElementById("fileLabel");
+  const savedBox = document.getElementById("savedBox");
+  const savedName = document.getElementById("savedName");
+  const savedDate = document.getElementById("savedDate");
+
   let workbook = null;
   let rows = null;
   let headerRowIndex = -1;
@@ -175,6 +213,71 @@
   let dateColumns = [];
 
   dateInput.value = localISODate(new Date());
+
+
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function saveShiftFile(arrayBuffer, fileName) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      tx.objectStore(STORE_NAME).put({
+        fileName,
+        savedAt: new Date().toISOString(),
+        data: arrayBuffer
+      }, RECORD_KEY);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function loadSavedShiftFile() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const req = tx.objectStore(STORE_NAME).get(RECORD_KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function parseAndUse(data, fileName, savedAt = null) {
+    workbook = XLSX.read(data, { type: "array", cellDates: true, cellFormula: true });
+    const sheet = workbook.Sheets[SHEET_NAME];
+    if (!sheet) throw new Error(`「${SHEET_NAME}」シートがありません。`);
+
+    rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: null });
+    const layout = findLayout(rows);
+    headerRowIndex = layout.headerRow;
+    nameColIndex = layout.nameCol;
+    codeColIndex = layout.codeCol;
+    dateColumns = layout.dates;
+
+    setDateRange(dateColumns);
+    searchBtn.disabled = false;
+
+    savedBox.hidden = false;
+    savedName.textContent = fileName;
+    savedDate.textContent = savedAt
+      ? `保存日時：${new Date(savedAt).toLocaleString("ja-JP")}`
+      : "";
+    fileLabel.textContent = "シフト表を更新";
+
+    const firstDate = dateColumns[0].iso.replaceAll("-", "/");
+    const lastDate = dateColumns[dateColumns.length - 1].iso.replaceAll("-", "/");
+    setStatus(`保存済みシフトを使用中：${firstDate} ～ ${lastDate}`, "ok");
+    showShift();
+  }
 
   function localISODate(d) {
     const y = d.getFullYear();
@@ -315,56 +418,23 @@
     searchBtn.disabled = true;
 
     const file = fileInput.files?.[0];
-    if (!file) {
-      setStatus("Excelファイルを選択してください。");
-      return;
-    }
+    if (!file) return;
 
     try {
       setStatus("Excelを読み込んでいます…");
-
       const data = await file.arrayBuffer();
 
-      workbook = XLSX.read(data, {
-        type: "array",
-        cellDates: true,
-        cellFormula: true
-      });
+      await parseAndUse(data, file.name);
+      await saveShiftFile(data, file.name);
 
-      const sheet = workbook.Sheets[SHEET_NAME];
-
-      if (!sheet) {
-        throw new Error(`「${SHEET_NAME}」シートがありません。`);
-      }
-
-      rows = XLSX.utils.sheet_to_json(sheet, {
-        header: 1,
-        raw: true,
-        defval: null
-      });
-
-      const layout = findLayout(rows);
-      headerRowIndex = layout.headerRow;
-      nameColIndex = layout.nameCol;
-      codeColIndex = layout.codeCol;
-      dateColumns = layout.dates;
-
-      setDateRange(dateColumns);
-      searchBtn.disabled = false;
-
-      const firstDate = dateColumns[0].iso.replaceAll("-", "/");
-      const lastDate = dateColumns[dateColumns.length - 1].iso.replaceAll("-", "/");
-
-      setStatus(
-        `${file.name} を読み込みました。検索できる期間：${firstDate} ～ ${lastDate}`,
-        "ok"
-      );
-
-      // 読み込み直後に選択日の結果も表示
-      showShift();
+      const now = new Date();
+      savedDate.textContent = `保存日時：${now.toLocaleString("ja-JP")}`;
+      setStatus("シフト表を保存しました。次回から自動で読み込みます。", "ok");
     } catch (err) {
       console.error(err);
       setStatus(`読み込みエラー：${err.message}`, "error");
+    } finally {
+      fileInput.value = "";
     }
   });
 
@@ -438,6 +508,22 @@
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
   }
+
+  // ページを開いたとき、前回保存したExcelを自動読込
+  (async () => {
+    try {
+      const saved = await loadSavedShiftFile();
+      if (!saved) {
+        setStatus("初回だけ、シフト表Excelを登録してください。");
+        return;
+      }
+      await parseAndUse(saved.data, saved.fileName, saved.savedAt);
+    } catch (err) {
+      console.error(err);
+      setStatus("保存済みシフトを読み込めませんでした。シフト表を再登録してください。", "error");
+    }
+  })();
+
 })();
 </script>
 </body>
