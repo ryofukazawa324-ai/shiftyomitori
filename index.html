@@ -351,6 +351,12 @@
 
       <section id="editMode">
         <div class="sectionCard">
+          <h3>◆出勤メンバー</h3>
+          <textarea id="staffMembers" placeholder="シフト表から情報Sの出勤メンバーを自動入力します"></textarea>
+          <div class="small">幸田さんから茂呂さんの直前までを情報Sとして抽出します。自動入力後もその日だけ編集できます。</div>
+        </div>
+
+        <div class="sectionCard">
           <h3>◆今月目標</h3>
           <textarea id="monthlyGoal"></textarea>
           <div class="small">月ごとに保存します。</div>
@@ -453,7 +459,7 @@
   };
 
   const FIELDS = [
-    "dailyTodo","earlyTodo","beforeGoal","virtualOrder","salesModels",
+    "staffMembers","dailyTodo","earlyTodo","beforeGoal","virtualOrder","salesModels",
     "bbSurvey","oneWord","improve","stumble","impression"
   ];
 
@@ -472,6 +478,7 @@
   const monthlyGoal = document.getElementById("monthlyGoal");
   const dailyTodo = document.getElementById("dailyTodo");
   const earlyTodo = document.getElementById("earlyTodo");
+  const staffMembers = document.getElementById("staffMembers");
   const beforeGoal = document.getElementById("beforeGoal");
   const virtualOrder = document.getElementById("virtualOrder");
   const salesModels = document.getElementById("salesModels");
@@ -544,6 +551,7 @@
       if (raw) return JSON.parse(raw);
     } catch {}
     return {
+      staffMembers: "",
       dailyTodo: DEFAULTS.dailyTodo,
       earlyTodo: DEFAULTS.earlyTodo,
       beforeGoal: "",
@@ -591,6 +599,9 @@
     const header = `${d.getMonth()+1}月${d.getDate()}日　ミッテン府中店　情報部門　${DISPLAY_NAME}`;
     const lines = [
       header,
+      "",
+      "◆出勤メンバー",
+      staffMembers.value,
       "",
       "◆今月目標",
       monthlyGoal.value,
@@ -762,6 +773,77 @@
     statusBox.textContent=message;
   }
 
+
+  function isLeaveShift(shift) {
+    if (!shift) return true;
+    const leaveWords = [
+      "休", "公休", "有休", "有給", "希望休",
+      "欠勤", "休日", "振休", "代休"
+    ];
+    return leaveWords.some(word => shift === word || shift.includes(word));
+  }
+
+  function getInfoStaffForSelectedDate() {
+    if (!rows) return [];
+
+    const dateInfo = dateColumns.find(d => d.iso === dateInput.value);
+    if (!dateInfo) return [];
+
+    let startRow = -1;
+    let endRow = -1;
+
+    for (let r = headerRowIndex + 1; r < rows.length; r++) {
+      const row = rows[r] || [];
+      const name = cleanText(row[nameColIndex]);
+
+      if (startRow < 0 && name.includes("幸田")) {
+        startRow = r;
+        continue;
+      }
+
+      if (startRow >= 0 && name.includes("茂呂")) {
+        endRow = r; // 茂呂さん自身は含めない
+        break;
+      }
+    }
+
+    if (startRow < 0) return [];
+    if (endRow < 0) endRow = rows.length;
+
+    const members = [];
+
+    for (let r = startRow; r < endRow; r++) {
+      const row = rows[r] || [];
+      const name = cleanText(row[nameColIndex]);
+      const code = row[codeColIndex];
+      const shift = cleanText(row[dateInfo.col]);
+
+      if (!name || !isPersonCode(code)) continue;
+      if (!shift || isLeaveShift(shift)) continue;
+
+      members.push(`${name}　${shift}`);
+    }
+
+    return members;
+  }
+
+  function fillInfoStaffIfNeeded() {
+    if (!rows) return;
+
+    const currentData = getDayData();
+    const hasSavedStaff = Object.prototype.hasOwnProperty.call(currentData, "staffMembers")
+      && String(currentData.staffMembers || "").trim() !== "";
+
+    // その日にすでに手入力・保存した内容がある場合は上書きしない
+    if (hasSavedStaff) return;
+
+    const members = getInfoStaffForSelectedDate();
+    if (!members.length) return;
+
+    staffMembers.value = members.join("\n");
+    saveDayData();
+  }
+
   function updateShiftForSelectedDate() {
     selectedShift = "";
     if (!rows) {
@@ -792,6 +874,7 @@
 
     shiftInfo.textContent = selectedShift ? `シフト：${selectedShift}` : "シフト：該当なし";
     earlyTodoCard.classList.toggle("earlyHidden", !isEarlyShift());
+    fillInfoStaffIfNeeded();
     renderView();
   }
 
