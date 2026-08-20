@@ -458,6 +458,32 @@
     earlyTodo: "ゲーム在庫確認、展示デモオンPCコーナーからゲームコーナー前レジ横のモニター左右まで\npcコーナーpop更新、古物確認"
   };
 
+  function getWeekdayTodos(isoDate) {
+    if (!isoDate) return [];
+    const d = new Date(`${isoDate}T00:00:00`);
+    const day = d.getDay();
+
+    switch (day) {
+      case 1: // 月
+        return ["自主棚"];
+      case 3: // 水
+        return ["ゲームダミー準備確認"];
+      case 4: // 木
+        return ["ゲーム発売できるように", "OODA更新"];
+      case 5: // 金
+        return ["18:30くらいから上貼りがある時ある", "MK調査"];
+      case 6: // 土
+        return ["MK調査", "BB濱崎シート確認"];
+      default:
+        return [];
+    }
+  }
+
+  function getDefaultDailyTodo(isoDate) {
+    const items = [DEFAULTS.dailyTodo, ...getWeekdayTodos(isoDate)];
+    return items.filter(Boolean).join("\n");
+  }
+
   const FIELDS = [
     "staffMembers","dailyTodo","earlyTodo","beforeGoal","virtualOrder","salesModels",
     "bbSurvey","oneWord","improve","stumble","impression"
@@ -552,7 +578,7 @@
     } catch {}
     return {
       staffMembers: "",
-      dailyTodo: DEFAULTS.dailyTodo,
+      dailyTodo: getDefaultDailyTodo(dateInput.value),
       earlyTodo: DEFAULTS.earlyTodo,
       beforeGoal: "",
       virtualOrder: "",
