@@ -1,0 +1,52 @@
+name: Patch auto update
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-autoupdate.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch index.html
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          meta = '''  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">\n  <meta http-equiv="Pragma" content="no-cache">\n  <meta http-equiv="Expires" content="0">\n'''
+          if 'http-equiv="Cache-Control"' not in s:
+              s = s.replace('<head>', '<head>\n' + meta, 1)
+
+          version = '2026.08.26-2'
+          update_js = f'''\n  const APP_VERSION = "{version}";\n\n  async function checkForFreshPage() {{\n    const sessionKey = `workReport:reloadChecked:${{APP_VERSION}}`;\n    if (sessionStorage.getItem(sessionKey)) return;\n    sessionStorage.setItem(sessionKey, "1");\n\n    try {{\n      const base = location.href.split("?")[0].split("#")[0];\n      const response = await fetch(`${{base}}?_fresh=${{Date.now()}}`, {{ cache: "no-store" }});\n      if (!response.ok) return;\n      const remoteHtml = await response.text();\n      const match = remoteHtml.match(/const APP_VERSION = "([^"]+)"/);\n      if (!match) return;\n      const remoteVersion = match[1];\n      if (remoteVersion !== APP_VERSION) {{\n        location.replace(`${{base}}?v=${{encodeURIComponent(remoteVersion)}}`);\n      }}\n    }} catch (e) {{\n      console.log("Update check skipped:", e);\n    }}\n  }}\n\n  window.addEventListener("pageshow", checkForFreshPage);\n'''
+
+          if 'const APP_VERSION =' not in s:
+              pos = s.rfind('</script>')
+              if pos == -1:
+                  raise SystemExit('final script tag not found')
+              s = s[:pos] + update_js + '\n' + s[pos:]
+
+          ui = f'''\n      <div id="updateStatus" class="small" style="margin-top:10px;text-align:center;">\n        バージョン {version}\n      </div>\n'''
+          if 'id="updateStatus"' not in s and '<div class="dataDeleteArea">' in s:
+              s = s.replace('<div class="dataDeleteArea">', ui + '\n      <div class="dataDeleteArea">', 1)
+
+          p.write_text(s, encoding='utf-8')
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Add automatic cache refresh"
+            git push
+          fi
