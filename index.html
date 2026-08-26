@@ -12,7 +12,18 @@
     try {
       const res = await fetch(`app.html?_fresh=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const html = await res.text();
+      let html = await res.text();
+
+      // 編集モード下部にも完成文の全文コピーボタンを追加。
+      // localStorage / IndexedDB の保存キーには触れないため既存データは保持されます。
+      if (!html.includes('id="editCopyBtn"')) {
+        const button = '<button id="editCopyBtn" class="copyBtn" type="button" style="margin-top:18px;">全文をコピー</button>';
+        html = html.replace('<div class="sectionCard">\n          <h3>シフト表</h3>', button + '\n\n        <div class="sectionCard">\n          <h3>シフト表</h3>');
+
+        const copyScript = `\n<script>\nwindow.addEventListener('DOMContentLoaded', () => {\n  const b = document.getElementById('editCopyBtn');\n  if (!b) return;\n  b.addEventListener('click', async () => {\n    try {\n      if (typeof renderView === 'function') renderView();\n      const text = document.getElementById('viewText')?.textContent || '';\n      await navigator.clipboard.writeText(text);\n      const old = b.textContent;\n      b.textContent = 'コピーしました';\n      setTimeout(() => b.textContent = old, 1400);\n    } catch (e) {\n      alert('コピーできませんでした。表示モードからコピーしてください。');\n    }\n  });\n});\n<\/script>\n`;
+        html = html.replace('</body>', copyScript + '</body>');
+      }
+
       document.open();
       document.write(html);
       document.close();
