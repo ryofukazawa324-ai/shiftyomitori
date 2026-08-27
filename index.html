@@ -4,35 +4,119 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>日報ダッシュボード</title>
+  <link rel="preconnect" href="https://cdn.sheetjs.com" crossorigin>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif; background:#f4f6f8; color:#1f2937; }
+    .wrap { width:min(720px,calc(100% - 28px)); margin:22px auto; }
+    .card { background:#fff; border-radius:18px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.07); }
+    h1 { margin:0 0 6px; font-size:25px; }
+    .sub,.small { color:#6b7280; font-size:12px; line-height:1.55; }
+    .dateRow { display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end; margin:16px 0; }
+    label { font-size:13px; }
+    input,textarea,button { font:inherit; }
+    input[type=date],input[type=text],input[type=number],textarea { width:100%; border:1px solid #d1d5db; border-radius:10px; padding:11px; background:#fff; }
+    textarea { min-height:86px; resize:vertical; }
+    button,.fileButton { border:0; border-radius:10px; padding:11px 13px; background:#111827; color:#fff; font-weight:700; cursor:pointer; text-align:center; }
+    .reportHeader { padding:13px 14px; background:#111827; color:#fff; border-radius:12px; font-weight:800; }
+    .shiftInfo { margin:8px 0 0; color:#6b7280; font-size:13px; }
+    .topbar { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin:15px 0; }
+    .modeBtn { background:#eef2f7; color:#111827; padding:10px 6px; }
+    .modeBtn.active { background:#111827; color:#fff; }
+    .sectionCard { margin:13px 0; padding:15px; border:1px solid #e5e7eb; border-radius:14px; background:#fff; }
+    .sectionCard h3 { margin:0 0 10px; font-size:17px; }
+    .sectionHead { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .twoCol { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+    .viewBox { white-space:pre-wrap; line-height:1.75; border:1px solid #e5e7eb; border-radius:14px; padding:15px; }
+    .copyBtn { width:100%; margin-top:12px; }
+    .earlyHidden { display:none!important; }
+    .fileButton { display:block; background:#eef2f7; color:#111827; margin-top:10px; }
+    input[type=file] { display:none; }
+    .status { margin-top:9px; font-size:12px; color:#6b7280; }
+    .status.ok { color:#047857; } .status.error { color:#b91c1c; }
+    .saved { margin:8px 0; padding:10px; border-radius:10px; background:#f8fafc; }
+    .savedTitle { font-size:12px; color:#6b7280; } .savedName { font-weight:700; }
+    .settingsRow { display:grid; grid-template-columns:1fr auto auto; gap:7px; align-items:center; padding:9px 0; border-bottom:1px solid #eee; }
+    .sectionNameWrap { position:relative; }
+    .sectionNameWrap::before { content:"◆"; position:absolute; left:11px; top:50%; transform:translateY(-50%); font-weight:800; }
+    .sectionNameWrap input { padding-left:30px; }
+    .orderBtns { display:flex; gap:4px; }
+    .orderBtn { padding:8px 10px; background:#eef2f7; color:#111827; }
+    .orderBtn:disabled { opacity:.35; }
+    .showLabel { white-space:nowrap; font-size:12px; }
+    .customSettings { margin-top:14px; }
+    .customRow { display:grid; grid-template-columns:1fr auto auto; gap:7px; align-items:center; padding:8px 0; }
+    .removeBtn { background:#fff1f2; color:#b91c1c; padding:8px 10px; }
+    .danger { width:100%; margin-top:18px; background:#fff; color:#b91c1c; border:1px solid #fecaca; }
+    @media(max-width:560px){ .twoCol{grid-template-columns:1fr} .settingsRow,.customRow{grid-template-columns:1fr auto} .settingsRow .showLabel{grid-column:1/3} }
+  </style>
 </head>
 <body>
-  <div id="loading" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;">最新版を読み込んでいます…</div>
-  <script>
-  (async () => {
-    try {
-      const res = await fetch(`app.html?_fresh=${Date.now()}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      let html = await res.text();
+<main class="wrap"><section class="card">
+  <h1>日報ダッシュボード</h1>
+  <div class="sub">日付ごとに編集・保存。項目名と順番も変更できます。</div>
+  <div class="dateRow"><div><label for="targetDate">日付</label><input id="targetDate" type="date"></div><button id="todayBtn" type="button">今日</button></div>
+  <div id="reportHeader" class="reportHeader"></div><div id="shiftInfo" class="shiftInfo">シフト：読み込み待ち</div>
+  <div class="topbar"><button id="viewModeBtn" class="modeBtn">表示モード</button><button id="editModeBtn" class="modeBtn active">編集モード</button><button id="sectionModeBtn" class="modeBtn">項目変更</button></div>
+  <section id="viewMode" hidden><div id="viewText" class="viewBox"></div><button id="copyBtn" class="copyBtn">全文をコピー</button></section>
+  <section id="sectionMode" hidden><div class="sectionCard"><h3>◆項目変更モード</h3><div class="small">◆は自動で付きます。項目名・表示/非表示・並び順を変更できます。本文データは消えません。</div><div id="sectionSettings"></div><button id="addSectionFromSettingsBtn" class="copyBtn">＋ 項目を追加</button></div></section>
+  <section id="editMode"></section>
+  <div class="sectionCard"><h3>シフト表</h3><div id="savedBox" class="saved" hidden><div class="savedTitle">現在保存中のシフト表</div><div id="savedName" class="savedName"></div><div id="savedDate" class="small"></div></div><label class="fileButton" for="excelFile" id="fileLabel">シフト表を登録</label><input id="excelFile" type="file" accept=".xlsx,.xls,.xlsm"><div id="status" class="status">初回だけシフト表Excelを登録してください。</div></div>
+  <button id="deleteReportDataBtn" class="danger">日報の保存データを削除</button>
+</section></main>
+<script>
+(()=>{
+  const SHEET_NAME="3）入力用",SELF_SEARCH_NAME="深澤",DISPLAY_NAME="深澤椋",STORE_PREFIX="workReport:";
+  const DEFAULTS={monthlyGoal:"販買以外の業務を部門でできるようにしていく\nお客様に向かう行動を常にしタイミングに振り回されないようにする",dailyTodo:"pos点検、退勤時AV情報POS締め",earlyTodo:"ゲーム在庫確認、展示デモオンPCコーナーからゲームコーナー前レジ横のモニター左右まで\npcコーナーpop更新、古物確認"};
+  const BASE_SECTIONS=[{id:"staffMembers",title:"出勤メンバー"},{id:"monthlyGoal",title:"今月目標"},{id:"dailyTodo",title:"本日のやること"},{id:"earlyTodo",title:"早番todo"},{id:"beforeGoal",title:"出勤前目標"},{id:"sales",title:"販買実績"},{id:"bbSurvey",title:"BBアンケート"},{id:"oneWord",title:"ヒトコト所感"},{id:"improve",title:"改善期待行動"},{id:"stumble",title:"まごついたところ"},{id:"impression",title:"所感"}];
+  const DEFAULT_ORDER=BASE_SECTIONS.map(x=>x.id), FIELDS=["staffMembers","dailyTodo","earlyTodo","beforeGoal","virtualOrder","salesModels","bbSurvey","oneWord","improve","stumble","impression"];
+  const $=id=>document.getElementById(id),dateInput=$("targetDate"),reportHeader=$("reportHeader"),shiftInfo=$("shiftInfo"),viewMode=$("viewMode"),editMode=$("editMode"),sectionMode=$("sectionMode"),viewText=$("viewText"),sectionSettings=$("sectionSettings");
+  const cfgKey=`${STORE_PREFIX}sectionConfig`,orderKey=`${STORE_PREFIX}sectionOrder`; let selectedShift="";
+  function localISODate(d){const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
+  function dateKey(){return `${STORE_PREFIX}day:${dateInput.value}`} function monthKey(){return `${STORE_PREFIX}month:${dateInput.value.slice(0,7)}`} function customKey(){return `${dateKey()}:customSections`}
+  function getWeekdayTodos(){if(!dateInput.value)return[];const w=new Date(dateInput.value+'T00:00:00').getDay(),a=[];if(w===1)a.push('自主棚');if(w===3)a.push('ゲームダミー準備確認');if(w===4)a.push('ゲーム発売できるように','OODA更新');if(w===5)a.push('18:30くらいから上貼りがある時ある','MK調査');if(w===6)a.push('MK調査','BB濱崎シート確認');return a}
+  function blank(){return{staffMembers:'',dailyTodo:[DEFAULTS.dailyTodo,...getWeekdayTodos()].join('\n'),earlyTodo:DEFAULTS.earlyTodo,beforeGoal:'',virtualOrder:'',salesModels:'',bbSurvey:'',oneWord:'',improve:'',stumble:'',impression:''}}
+  function getDayData(){try{return{...blank(),...JSON.parse(localStorage.getItem(dateKey())||'{}')}}catch{return blank()}}
+  function getCfg(){let saved={};try{saved=JSON.parse(localStorage.getItem(cfgKey)||'{}')}catch{};return Object.fromEntries(BASE_SECTIONS.map(x=>[x.id,{title:String(saved[x.id]?.title||x.title).replace(/^◆+/,''),hidden:!!saved[x.id]?.hidden}]))}
+  function getOrder(){try{const a=JSON.parse(localStorage.getItem(orderKey)||'[]');return [...a.filter(id=>DEFAULT_ORDER.includes(id)),...DEFAULT_ORDER.filter(id=>!a.includes(id))]}catch{return [...DEFAULT_ORDER]}}
+  function title(id){return getCfg()[id]?.title||BASE_SECTIONS.find(x=>x.id===id)?.title||id} function sectionVisible(id){return !getCfg()[id]?.hidden}
+  function getCustomSections(){try{return JSON.parse(localStorage.getItem(customKey())||'[]')}catch{return[]}} function saveCustomSections(a){localStorage.setItem(customKey(),JSON.stringify(a));buildEdit();renderView();renderSettings()}
+  function escapeHTML(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+  function buildEdit(){const d=getDayData();let html='';for(const id of getOrder()){if(!sectionVisible(id))continue;if(id==='earlyTodo'&&!selectedShift.includes('早'))continue;html+=`<div class="sectionCard"><div class="sectionHead"><h3>◆${escapeHTML(title(id))}</h3></div>`;if(id==='sales')html+=`<div class="twoCol"><div><div class="small">仮想受注込 → 万円</div><input id="virtualOrder" type="number"></div><div><div class="small">販買商品型番</div><textarea id="salesModels"></textarea></div></div>`;else html+=`<textarea id="${id}"></textarea>`;html+='</div>'}
+    getCustomSections().forEach((x,i)=>{html+=`<div class="sectionCard"><div class="sectionHead"><h3>◆${escapeHTML(String(x.title||'新しい項目').replace(/^◆+/,''))}</h3></div><textarea data-custom-body="${i}">${escapeHTML(x.body||'')}</textarea></div>`});html+='<button id="editCopyBtn" class="copyBtn">全文をコピー</button>';editMode.innerHTML=html;
+    FIELDS.forEach(id=>{const e=$(id);if(e){e.value=d[id]??'';e.oninput=()=>{const x=getDayData();FIELDS.forEach(fid=>{const f=$(fid);if(f)x[fid]=f.value});localStorage.setItem(dateKey(),JSON.stringify(x));renderView()}}});if($("monthlyGoal")){ $("monthlyGoal").value=localStorage.getItem(monthKey())??DEFAULTS.monthlyGoal; $("monthlyGoal").oninput=()=>{localStorage.setItem(monthKey(),$("monthlyGoal").value);renderView()}}
+    editMode.querySelectorAll('[data-custom-body]').forEach(e=>e.oninput=()=>{const a=getCustomSections();a[+e.dataset.customBody].body=e.value;localStorage.setItem(customKey(),JSON.stringify(a));renderView()});$("editCopyBtn").onclick=copyText;
+  }
+  function renderView(){const d=getDayData(),dt=new Date(dateInput.value+'T00:00:00'),lines=[`${dt.getMonth()+1}月${dt.getDate()}日　ミッテン府中店　情報部門　${DISPLAY_NAME}`];const value=id=>id==='monthlyGoal'?(localStorage.getItem(monthKey())??DEFAULTS.monthlyGoal):id==='sales'?`　仮想受注込　　　→　${d.virtualOrder||''}万円\n　販買商品型番　→　${d.salesModels||''}`:id==='bbSurvey'?`${d.bbSurvey||''}件`:d[id]||'';for(const id of getOrder()){if(!sectionVisible(id))continue;if(id==='earlyTodo'&&!selectedShift.includes('早'))continue;lines.push('',`◆${title(id)}`,value(id))}getCustomSections().forEach(x=>lines.push('',`◆${String(x.title||'新しい項目').replace(/^◆+/,'')}`,x.body||''));viewText.textContent=lines.join('\n').trim()}
+  function renderSettings(){const cfg=getCfg(),order=getOrder();sectionSettings.innerHTML=order.map((id,i)=>`<div class="settingsRow"><div class="sectionNameWrap"><input type="text" data-section-name="${id}" value="${escapeHTML(cfg[id].title)}"></div><div class="orderBtns"><button class="orderBtn" data-move-up="${id}" ${i===0?'disabled':''}>↑</button><button class="orderBtn" data-move-down="${id}" ${i===order.length-1?'disabled':''}>↓</button></div><label class="showLabel"><input type="checkbox" data-section-show="${id}" ${cfg[id].hidden?'':'checked'}> 表示</label></div>`).join('')+'<div id="customSettings" class="customSettings"></div>';const saveCfg=()=>{const old=getCfg(),x={};BASE_SECTIONS.forEach(s=>{const n=sectionSettings.querySelector(`[data-section-name="${s.id}"]`),v=sectionSettings.querySelector(`[data-section-show="${s.id}"]`);x[s.id]={title:String(n?.value||old[s.id].title||s.title).replace(/^◆+/,''),hidden:!(v?.checked)}});localStorage.setItem(cfgKey,JSON.stringify(x));buildEdit();renderView()};sectionSettings.querySelectorAll('[data-section-name]').forEach(e=>e.oninput=saveCfg);sectionSettings.querySelectorAll('[data-section-show]').forEach(e=>e.onchange=saveCfg);sectionSettings.querySelectorAll('[data-move-up]').forEach(b=>b.onclick=()=>moveSection(b.dataset.moveUp,-1));sectionSettings.querySelectorAll('[data-move-down]').forEach(b=>b.onclick=()=>moveSection(b.dataset.moveDown,1));renderCustomSettings()}
+  function moveSection(id,delta){const a=getOrder(),i=a.indexOf(id),j=i+delta;if(i<0||j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];localStorage.setItem(orderKey,JSON.stringify(a));renderSettings();buildEdit();renderView()}
+  function renderCustomSettings(){const host=$("customSettings"),a=getCustomSections();host.innerHTML=a.map((x,i)=>`<div class="customRow"><div class="sectionNameWrap"><input data-custom-name="${i}" value="${escapeHTML(String(x.title||'新しい項目').replace(/^◆+/,''))}"></div><div class="orderBtns"><button class="orderBtn" data-custom-up="${i}" ${i===0?'disabled':''}>↑</button><button class="orderBtn" data-custom-down="${i}" ${i===a.length-1?'disabled':''}>↓</button></div><button class="removeBtn" data-custom-remove="${i}">削除</button></div>`).join('');host.querySelectorAll('[data-custom-name]').forEach(e=>e.oninput=()=>{const x=getCustomSections();x[+e.dataset.customName].title=String(e.value).replace(/^◆+/,'');localStorage.setItem(customKey(),JSON.stringify(x));buildEdit();renderView()});host.querySelectorAll('[data-custom-up]').forEach(b=>b.onclick=()=>moveCustom(+b.dataset.customUp,-1));host.querySelectorAll('[data-custom-down]').forEach(b=>b.onclick=()=>moveCustom(+b.dataset.customDown,1));host.querySelectorAll('[data-custom-remove]').forEach(b=>b.onclick=()=>{const x=getCustomSections();x.splice(+b.dataset.customRemove,1);saveCustomSections(x)})}
+  function moveCustom(i,d){const a=getCustomSections(),j=i+d;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];saveCustomSections(a)}
+  $("addSectionFromSettingsBtn").onclick=()=>{const a=getCustomSections();a.push({title:'新しい項目',body:''});saveCustomSections(a)};
+  function updateHeader(){if(!dateInput.value)return;const d=new Date(dateInput.value+'T00:00:00');reportHeader.textContent=`${d.getMonth()+1}月${d.getDate()}日　ミッテン府中店　情報部門　${DISPLAY_NAME}`}
+  async function copyText(){renderView();try{await navigator.clipboard.writeText(viewText.textContent);alert('全文をコピーしました')}catch{alert('コピーできませんでした。表示モードから長押しコピーしてください。')}}
+  function setMode(m){viewMode.hidden=m!=='view';editMode.hidden=m!=='edit';sectionMode.hidden=m!=='section';$("viewModeBtn").classList.toggle('active',m==='view');$("editModeBtn").classList.toggle('active',m==='edit');$("sectionModeBtn").classList.toggle('active',m==='section');if(m==='view')renderView();if(m==='section')renderSettings()}
+  $("viewModeBtn").onclick=()=>setMode('view');$("editModeBtn").onclick=()=>setMode('edit');$("sectionModeBtn").onclick=()=>setMode('section');$("copyBtn").onclick=copyText;$("todayBtn").onclick=()=>{dateInput.value=localISODate(new Date());loadForm()};dateInput.onchange=loadForm;
+  function loadForm(){updateHeader();buildEdit();renderView();updateShiftForSelectedDate()}
 
-      // 編集モード下部にも完成文の全文コピーボタンを追加。
-      // localStorage / IndexedDB の保存キーには触れないため既存データは保持されます。
-      if (!html.includes('id="editCopyBtn"')) {
-        const button = '<button id="editCopyBtn" class="copyBtn" type="button" style="margin-top:18px;">全文をコピー</button>';
-        html = html.replace('<div class="sectionCard">\n          <h3>シフト表</h3>', button + '\n\n        <div class="sectionCard">\n          <h3>シフト表</h3>');
-
-        const copyScript = `\n<script>\nwindow.addEventListener('DOMContentLoaded', () => {\n  const b = document.getElementById('editCopyBtn');\n  if (!b) return;\n  b.addEventListener('click', async () => {\n    try {\n      const text = document.getElementById('viewText')?.textContent || '';\n      await navigator.clipboard.writeText(text);\n      const old = b.textContent;\n      b.textContent = 'コピーしました';\n      setTimeout(() => b.textContent = old, 1400);\n    } catch (e) {\n      alert('コピーできませんでした。表示モードからコピーしてください。');\n    }\n  });\n});\n<\/script>\n`;
-        html = html.replace('</body>', copyScript + '</body>');
-      }
-
-      html = html.replace('</body>', '<script src="patch.js?v=20260827-2"><\/script></body>');
-      document.open();
-      document.write(html);
-      document.close();
-    } catch (e) {
-      document.getElementById('loading').innerHTML = '読み込みに失敗しました。通信状態を確認して、もう一度開いてください。';
-      console.error(e);
-    }
-  })();
-  </script>
+  const fileInput=$("excelFile"),fileLabel=$("fileLabel"),savedBox=$("savedBox"),savedName=$("savedName"),savedDate=$("savedDate"),statusBox=$("status");
+  const DB_NAME="ShiftSearchDB",DB_VERSION=1,STORE_NAME="files",RECORD_KEY="currentShift";let rows=null,headerRowIndex=-1,nameColIndex=-1,codeColIndex=-1,dateColumns=[];
+  function setStatus(message,type=''){statusBox.className=`status ${type}`.trim();statusBox.textContent=message}
+  function openDB(){return new Promise((ok,no)=>{const r=indexedDB.open(DB_NAME,DB_VERSION);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(STORE_NAME))r.result.createObjectStore(STORE_NAME)};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
+  async function saveShiftFile(data,fileName){const db=await openDB();return new Promise((ok,no)=>{const t=db.transaction(STORE_NAME,'readwrite');t.objectStore(STORE_NAME).put({data,fileName,savedAt:new Date().toISOString()},RECORD_KEY);t.oncomplete=ok;t.onerror=()=>no(t.error)})}
+  async function loadSavedShiftFile(){const db=await openDB();return new Promise((ok,no)=>{const t=db.transaction(STORE_NAME,'readonly'),r=t.objectStore(STORE_NAME).get(RECORD_KEY);r.onsuccess=()=>ok(r.result||null);r.onerror=()=>no(r.error)})}
+  let xlsxPromise=null;function ensureXLSX(){if(window.XLSX)return Promise.resolve(window.XLSX);if(xlsxPromise)return xlsxPromise;xlsxPromise=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';s.async=true;s.onload=()=>window.XLSX?resolve(window.XLSX):reject(new Error('Excel機能を読み込めませんでした。'));s.onerror=()=>reject(new Error('Excel機能を読み込めませんでした。'));document.head.appendChild(s)});return xlsxPromise}
+  function cleanText(v){return v==null?'':String(v).trim()} function valueToISO(v){if(v instanceof Date&&!isNaN(v))return localISODate(v);if(typeof v==='number'&&window.XLSX){const p=XLSX.SSF.parse_date_code(Number(v));if(p?.y)return `${p.y}-${String(p.m).padStart(2,'0')}-${String(p.d).padStart(2,'0')}`}const s=cleanText(v),m=s.match(/(?:(\d{4})[\/.\-])?(\d{1,2})[\/.\-](\d{1,2})/);if(m){const y=Number(m[1]||new Date().getFullYear());return `${y}-${String(+m[2]).padStart(2,'0')}-${String(+m[3]).padStart(2,'0')}`}return null}
+  function isPersonCode(v){const s=cleanText(v);return /^\d+$/.test(s)||s===''}
+  function findLayout(data){let hr=-1,nc=-1,cc=-1;for(let r=0;r<Math.min(data.length,40);r++){const row=data[r]||[];for(let c=0;c<row.length;c++){if(cleanText(row[c]).includes('担当者名')){hr=r;nc=c;break}}if(hr>=0)break}if(hr<0)throw new Error('「担当者名」の列を見つけられませんでした。');const h=data[hr]||[];for(let c=0;c<h.length;c++)if(cleanText(h[c])==='CD'){cc=c;break}if(cc<0)cc=Math.max(0,nc-2);const map=new Map();for(let r=Math.max(0,hr-2);r<=Math.min(data.length-1,hr+2);r++){const row=data[r]||[];for(let c=0;c<row.length;c++){const iso=valueToISO(row[c]);if(iso&&!map.has(iso))map.set(iso,c)}}const dates=[...map.entries()].map(([iso,col])=>({iso,col})).sort((a,b)=>a.iso.localeCompare(b.iso));if(!dates.length)throw new Error('日付の列を見つけられませんでした。');return{headerRow:hr,nameCol:nc,codeCol:cc,dates}}
+  async function parseAndUse(data,fileName,savedAt=null){await ensureXLSX();const workbook=XLSX.read(data,{type:'array',cellDates:true,cellFormula:true}),sheet=workbook.Sheets[SHEET_NAME];if(!sheet)throw new Error(`「${SHEET_NAME}」シートがありません。`);rows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null});const l=findLayout(rows);headerRowIndex=l.headerRow;nameColIndex=l.nameCol;codeColIndex=l.codeCol;dateColumns=l.dates;savedBox.hidden=false;savedName.textContent=fileName;savedDate.textContent=savedAt?`保存日時：${new Date(savedAt).toLocaleString('ja-JP')}`:'';fileLabel.textContent='シフト表を更新';setStatus('保存済みシフトを使用中','ok');updateShiftForSelectedDate()}
+  function getInfoStaffForSelectedDate(){if(!rows)return[];const di=dateColumns.find(d=>d.iso===dateInput.value);if(!di)return[];let inside=false,a=[];for(let r=headerRowIndex+1;r<rows.length;r++){const row=rows[r]||[],name=cleanText(row[nameColIndex]);if(!name)continue;if(name.includes('幸田'))inside=true;if(!inside)continue;const sh=cleanText(row[di.col]);if(sh&&!['休','公休','有休','有給','希望休','欠勤','休日','振休','代休'].some(w=>sh.includes(w)))a.push(`${name}　${sh}`);if(name.includes('小西'))break}return a}
+  function updateShiftForSelectedDate(){selectedShift='';if(!rows){shiftInfo.textContent='シフト：読み込み待ち';buildEdit();renderView();return}const di=dateColumns.find(d=>d.iso===dateInput.value);if(!di){shiftInfo.textContent='シフト：この日付はシフト表にありません';buildEdit();renderView();return}for(let r=headerRowIndex+1;r<rows.length;r++){const row=rows[r]||[],name=cleanText(row[nameColIndex]);if(name.includes(SELF_SEARCH_NAME)){selectedShift=cleanText(row[di.col]);break}}shiftInfo.textContent=selectedShift?`シフト：${selectedShift}`:'シフト：該当なし';const d=getDayData();if(!String(d.staffMembers||'').trim()){const a=getInfoStaffForSelectedDate();if(a.length){d.staffMembers=a.join('\n');localStorage.setItem(dateKey(),JSON.stringify(d))}}buildEdit();renderView()}
+  fileInput.onchange=async()=>{const file=fileInput.files?.[0];if(!file)return;try{setStatus('Excelを読み込んでいます…');const data=await file.arrayBuffer();await parseAndUse(data,file.name);await saveShiftFile(data,file.name);savedDate.textContent=`保存日時：${new Date().toLocaleString('ja-JP')}`;setStatus('シフト表を保存しました。次回から自動で読み込みます。','ok')}catch(e){console.error(e);setStatus(`読み込みエラー：${e.message}`,'error')}finally{fileInput.value=''}};
+  $("deleteReportDataBtn").onclick=()=>{if(!confirm('日報の保存データをすべて削除します。\nシフト表Excelは残ります。\n削除してよいですか？'))return;const keys=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(STORE_PREFIX))keys.push(k)}keys.forEach(k=>localStorage.removeItem(k));loadForm();alert(`日報データを削除しました（${keys.length}件）。`)};
+  dateInput.value=localISODate(new Date());loadForm();setMode('edit');
+  const loadSavedShiftDeferred=async()=>{try{const saved=await loadSavedShiftFile();if(!saved)return;setStatus('保存済みシフトを準備中…');await parseAndUse(saved.data,saved.fileName,saved.savedAt)}catch(e){console.error(e);setStatus('保存済みシフトを読み込めませんでした。シフト表を再登録してください。','error')}};if('requestIdleCallback'in window)requestIdleCallback(loadSavedShiftDeferred,{timeout:1500});else setTimeout(loadSavedShiftDeferred,80);
+})();
+</script>
 </body>
 </html>
