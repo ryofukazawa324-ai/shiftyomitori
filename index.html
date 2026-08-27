@@ -7,9 +7,9 @@
   <link rel="preconnect" href="https://cdn.sheetjs.com" crossorigin>
   <style>
     * { box-sizing: border-box; }
-    html,body { min-height:100%; overflow-x:hidden; overflow-y:auto; -webkit-overflow-scrolling:touch; }
-    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif; background:#f4f6f8; color:#1f2937; }
-    .wrap { width:min(720px,calc(100% - 28px)); margin:22px auto; padding-bottom:calc(120px + env(safe-area-inset-bottom)); }
+    html { min-height:100%; overflow-x:hidden; }
+    body { margin:0; min-height:100%; overflow-x:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif; background:#f4f6f8; color:#1f2937; }
+    .wrap { width:min(720px,calc(100% - 28px)); margin:22px auto; padding-bottom:calc(180px + env(safe-area-inset-bottom)); }
     .card { background:#fff; border-radius:18px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.07); }
     h1 { margin:0 0 6px; font-size:25px; }
     .sub,.small { color:#6b7280; font-size:12px; line-height:1.55; }
@@ -71,7 +71,7 @@ const DEFAULTS={monthlyGoal:"販買以外の業務を部門でできるように
 const defs=[["staffMembers","出勤メンバー","text"],["monthlyGoal","今月目標","month"],["dailyTodo","本日のやること","text"],["earlyTodo","早番todo","text"],["beforeGoal","出勤前目標","text"],["sales","販買実績","sales"],["bbSurvey","BBアンケート","text"],["oneWord","ヒトコト所感","text"],["improve","改善期待行動","text"],["stumble","まごついたところ","text"],["impression","所感","text"]];
 const ids=defs.map(x=>x[0]),legacy=["staffMembers","dailyTodo","earlyTodo","beforeGoal","virtualOrder","salesModels","bbSurvey","oneWord","improve","stumble","impression"],$=id=>document.getElementById(id),date=$("targetDate"),edit=$("editMode"),view=$("viewMode"),sec=$("sectionMode");let selectedShift="",rows=null,headerRowIndex=-1,nameColIndex=-1,codeColIndex=-1,dateColumns=[];
 const iso=d=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)},dayKey=()=>`${PREFIX}day:${date.value}`,monthKey=()=>`${PREFIX}month:${date.value.slice(0,7)}`,cfgKey=`${PREFIX}sectionConfig`,orderKey=`${PREFIX}sectionOrder`,customKey=()=>`${dayKey()}:customSections`;
-function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[m]))}function weekdays(){if(!date.value)return[];const w=new Date(date.value+'T00:00:00').getDay(),a=[];if(w===1)a.push('自主棚');if(w===3)a.push('ゲームダミー準備確認');if(w===4)a.push('ゲーム発売できるように','OODA更新');if(w===5)a.push('18:30くらいから上貼りがある時ある','MK調査');if(w===6)a.push('MK調査','BB濱崎シート確認');return a}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}function weekdays(){if(!date.value)return[];const w=new Date(date.value+'T00:00:00').getDay(),a=[];if(w===1)a.push('自主棚');if(w===3)a.push('ゲームダミー準備確認');if(w===4)a.push('ゲーム発売できるように','OODA更新');if(w===5)a.push('18:30くらいから上貼りがある時ある','MK調査');if(w===6)a.push('MK調査','BB濱崎シート確認');return a}
 function blank(){return{staffMembers:'',dailyTodo:[DEFAULTS.dailyTodo,...weekdays()].join('\n'),earlyTodo:DEFAULTS.earlyTodo,beforeGoal:'',virtualOrder:'',salesModels:'',bbSurvey:'',oneWord:'',improve:'',stumble:'',impression:''}}function data(){try{return{...blank(),...JSON.parse(localStorage.getItem(dayKey())||'{}')}}catch{return blank()}}
 function cfg(){let s={};try{s=JSON.parse(localStorage.getItem(cfgKey)||'{}')}catch{};return Object.fromEntries(defs.map(d=>[d[0],{title:String(s[d[0]]?.title||d[1]).replace(/^◆+/,''),hidden:!!s[d[0]]?.hidden}]))}function order(){try{const a=JSON.parse(localStorage.getItem(orderKey)||'[]');return[...a.filter(x=>ids.includes(x)),...ids.filter(x=>!a.includes(x))]}catch{return[...ids]}}function title(id){return cfg()[id]?.title||id}function visible(id){return !cfg()[id]?.hidden}function customs(){try{return JSON.parse(localStorage.getItem(customKey())||'[]')}catch{return[]}}
 function save(){const d=data();legacy.forEach(id=>{const e=$(id);if(e)d[id]=e.value});localStorage.setItem(dayKey(),JSON.stringify(d));render()}
