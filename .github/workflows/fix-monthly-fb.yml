@@ -1,0 +1,31 @@
+name: Fix monthly feedback button
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-monthly-fb.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove ChatGPT auto-open
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+          old='''$("monthlyFbBtn").onclick=async()=>{const prompt=monthlyFeedbackPrompt();if(!prompt){alert('選択中の月に保存済みの日報がありません。');return}const tab=window.open('about:blank','_blank');try{await navigator.clipboard.writeText(prompt);if(tab)tab.location.href='https://chatgpt.com/';else window.location.href='https://chatgpt.com/';alert('月間FB用の文章をコピーしました。開いたChatGPTに貼り付けて送信してください。')}catch(e){if(tab)tab.close();alert('コピーできませんでした。Safariでページを開き直してもう一度試してください。')}};'''
+          new='''$("monthlyFbBtn").onclick=async()=>{const prompt=monthlyFeedbackPrompt();if(!prompt){alert('選択中の月に保存済みの日報がありません。');return}try{await navigator.clipboard.writeText(prompt);alert('月間FB用の文章をコピーしました。このChatGPTの会話に戻って貼り付けて送信してください。')}catch(e){alert('コピーできませんでした。Safariでページを開き直してもう一度試してください。')}};'''
+          if old not in s:
+              raise SystemExit('target code not found')
+          p.write_text(s.replace(old,new))
+          PY
+      - name: Commit change
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m 'Stop opening ChatGPT from monthly feedback button'
+          git push
