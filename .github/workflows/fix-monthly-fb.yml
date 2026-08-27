@@ -1,4 +1,4 @@
-name: Refresh staff members from Excel
+name: Fix information department staff
 on:
   push:
     paths:
@@ -10,23 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch staff auto refresh
+      - name: Fix staff extraction
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text()
-          old="function updateShift(){selectedShift='';if(!rows){$(\"shiftInfo\").textContent='シフト：読み込み待ち';build();render();return}const di=dateColumns.find(x=>x.iso===date.value);if(!di){$(\"shiftInfo\").textContent='シフト：この日付はシフト表にありません';build();render();return}for(let r=headerRowIndex+1;r<rows.length;r++){const name=clean((rows[r]||[])[nameColIndex]);if(name.includes(SELF)){selectedShift=clean((rows[r]||[])[di.col]);break}}$(\"shiftInfo\").textContent=selectedShift?`シフト：${selectedShift}`:'シフト：該当なし';build();render()}"
-          new="function updateShift(){selectedShift='';if(!rows){$(\"shiftInfo\").textContent='シフト：読み込み待ち';build();render();return}const di=dateColumns.find(x=>x.iso===date.value);if(!di){$(\"shiftInfo\").textContent='シフト：この日付はシフト表にありません';build();render();return}const members=[];for(let r=headerRowIndex+1;r<rows.length;r++){const row=rows[r]||[],name=clean(row[nameColIndex]),shift=clean(row[di.col]);if(!name)continue;if(name.includes(SELF))selectedShift=shift;if(shift&&!['休','公','有','年','欠',''].includes(shift))members.push(`${name}　${shift}`)}const d=data();d.staffMembers=members.join('\\n');localStorage.setItem(dayKey(),JSON.stringify(d));$(\"shiftInfo\").textContent=selectedShift?`シフト：${selectedShift}`:'シフト：該当なし';build();render()}"
+          old="function updateShift(){selectedShift='';if(!rows){$(\"shiftInfo\").textContent='シフト：読み込み待ち';build();render();return}const di=dateColumns.find(x=>x.iso===date.value);if(!di){$(\"shiftInfo\").textContent='シフト：この日付はシフト表にありません';build();render();return}const members=[];for(let r=headerRowIndex+1;r<rows.length;r++){const row=rows[r]||[],name=clean(row[nameColIndex]),shift=clean(row[di.col]);if(!name)continue;if(name.includes(SELF))selectedShift=shift;if(shift&&!['休','公','有','年','欠',''].includes(shift))members.push(`${name}　${shift}`)}const d=data();d.staffMembers=members.join('\\n');localStorage.setItem(dayKey(),JSON.stringify(d));$(\"shiftInfo\").textContent=selectedShift?`シフト：${selectedShift}`:'シフト：該当なし';build();render()}"
+          new="function updateShift(){selectedShift='';if(!rows){$(\"shiftInfo\").textContent='シフト：読み込み待ち';build();render();return}const di=dateColumns.find(x=>x.iso===date.value);if(!di){$(\"shiftInfo\").textContent='シフト：この日付はシフト表にありません';build();render();return}let start=-1,end=-1;for(let r=headerRowIndex+1;r<rows.length;r++){const name=clean((rows[r]||[])[nameColIndex]);if(start<0&&name.includes('幸田'))start=r;if(start>=0&&name.includes('小西')){end=r;break}}if(start<0)start=headerRowIndex+1;if(end<start)end=Math.min(rows.length-1,start+30);const members=[];for(let r=start;r<=end;r++){const row=rows[r]||[],name=clean(row[nameColIndex]),shift=clean(row[di.col]);if(!name||name.includes('茂呂'))continue;if(name.includes(SELF))selectedShift=shift;if(shift&&!['休','公','有','年','欠','休み','公休','有休'].includes(shift))members.push(`${name}　${shift}`)}const d=data();d.staffMembers=members.join('\\n');localStorage.setItem(dayKey(),JSON.stringify(d));$(\"shiftInfo\").textContent=selectedShift?`シフト：${selectedShift}`:'シフト：該当なし';build();render()}"
           if old not in s:
-              raise SystemExit('updateShift target not found')
-          s=s.replace(old,new)
-          p.write_text(s)
+              raise SystemExit('current staff extraction code not found')
+          p.write_text(s.replace(old,new))
           PY
       - name: Commit change
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Refresh staff members from reloaded shift Excel'
+          git commit -m 'Limit staff auto-fill to information department'
           git push
