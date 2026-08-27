@@ -1,4 +1,4 @@
-name: Fix monthly feedback button
+name: Refresh staff members from Excel
 on:
   push:
     paths:
@@ -10,22 +10,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Remove ChatGPT auto-open
+      - name: Patch staff auto refresh
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text()
-          old='''$("monthlyFbBtn").onclick=async()=>{const prompt=monthlyFeedbackPrompt();if(!prompt){alert('選択中の月に保存済みの日報がありません。');return}const tab=window.open('about:blank','_blank');try{await navigator.clipboard.writeText(prompt);if(tab)tab.location.href='https://chatgpt.com/';else window.location.href='https://chatgpt.com/';alert('月間FB用の文章をコピーしました。開いたChatGPTに貼り付けて送信してください。')}catch(e){if(tab)tab.close();alert('コピーできませんでした。Safariでページを開き直してもう一度試してください。')}};'''
-          new='''$("monthlyFbBtn").onclick=async()=>{const prompt=monthlyFeedbackPrompt();if(!prompt){alert('選択中の月に保存済みの日報がありません。');return}try{await navigator.clipboard.writeText(prompt);alert('月間FB用の文章をコピーしました。このChatGPTの会話に戻って貼り付けて送信してください。')}catch(e){alert('コピーできませんでした。Safariでページを開き直してもう一度試してください。')}};'''
+          old="function updateShift(){selectedShift='';if(!rows){$(\"shiftInfo\").textContent='シフト：読み込み待ち';build();render();return}const di=dateColumns.find(x=>x.iso===date.value);if(!di){$(\"shiftInfo\").textContent='シフト：この日付はシフト表にありません';build();render();return}for(let r=headerRowIndex+1;r<rows.length;r++){const name=clean((rows[r]||[])[nameColIndex]);if(name.includes(SELF)){selectedShift=clean((rows[r]||[])[di.col]);break}}$(\"shiftInfo\").textContent=selectedShift?`シフト：${selectedShift}`:'シフト：該当なし';build();render()}"
+          new="function updateShift(){selectedShift='';if(!rows){$(\"shiftInfo\").textContent='シフト：読み込み待ち';build();render();return}const di=dateColumns.find(x=>x.iso===date.value);if(!di){$(\"shiftInfo\").textContent='シフト：この日付はシフト表にありません';build();render();return}const members=[];for(let r=headerRowIndex+1;r<rows.length;r++){const row=rows[r]||[],name=clean(row[nameColIndex]),shift=clean(row[di.col]);if(!name)continue;if(name.includes(SELF))selectedShift=shift;if(shift&&!['休','公','有','年','欠',''].includes(shift))members.push(`${name}　${shift}`)}const d=data();d.staffMembers=members.join('\\n');localStorage.setItem(dayKey(),JSON.stringify(d));$(\"shiftInfo\").textContent=selectedShift?`シフト：${selectedShift}`:'シフト：該当なし';build();render()}"
           if old not in s:
-              raise SystemExit('target code not found')
-          p.write_text(s.replace(old,new))
+              raise SystemExit('updateShift target not found')
+          s=s.replace(old,new)
+          p.write_text(s)
           PY
       - name: Commit change
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Stop opening ChatGPT from monthly feedback button'
+          git commit -m 'Refresh staff members from reloaded shift Excel'
           git push
