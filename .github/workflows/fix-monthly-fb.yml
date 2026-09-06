@@ -1,4 +1,4 @@
-name: Cache parsed shift data
+name: Add weekly admin and late shift todos
 on:
   push:
     paths:
@@ -10,32 +10,57 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Cache parsed Excel data
+      - name: Patch todo automation
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text()
-          old="const DB='ShiftSearchDB',STORE='files',REC='currentShift';"
-          new="const DB='ShiftSearchDB',STORE='files',REC='currentShift',PARSED='currentShiftParsed';"
-          if old not in s: raise SystemExit('db constants target not found')
-          s=s.replace(old,new)
-          old="async function loadX(){const db=await odb();return new Promise((ok,no)=>{const t=db.transaction(STORE,'readonly'),r=t.objectStore(STORE).get(REC);r.onsuccess=()=>ok(r.result||null);r.onerror=()=>no(r.error)})}"
-          new="async function loadX(){const db=await odb();return new Promise((ok,no)=>{const t=db.transaction(STORE,'readonly'),r=t.objectStore(STORE).get(REC);r.onsuccess=()=>ok(r.result||null);r.onerror=()=>no(r.error)})}async function saveParsed(v){const db=await odb();return new Promise((ok,no)=>{const t=db.transaction(STORE,'readwrite');t.objectStore(STORE).put(v,PARSED);t.oncomplete=ok;t.onerror=()=>no(t.error)})}async function loadParsed(){const db=await odb();return new Promise((ok,no)=>{const t=db.transaction(STORE,'readonly'),r=t.objectStore(STORE).get(PARSED);r.onsuccess=()=>ok(r.result||null);r.onerror=()=>no(r.error)})}"
-          if old not in s: raise SystemExit('loadX target not found')
-          s=s.replace(old,new)
-          old="status.textContent=`保存済みシフトを使用中（${dateColumns[0]?.iso||'?'} ～ ${dateColumns.at(-1)?.iso||'?'}）`;updateShift()}"
-          new="status.textContent=`保存済みシフトを使用中（${dateColumns[0]?.iso||'?'} ～ ${dateColumns.at(-1)?.iso||'?'}）`;updateShift();return{rows,headerRowIndex,nameColIndex,codeColIndex,dateColumns,fileName:name,savedAt:at}}"
-          if old not in s: raise SystemExit('parse return target not found')
-          s=s.replace(old,new)
-          old="await parse(a,f.name);await saveX(a,f.name);status.textContent="
-          new="const parsed=await parse(a,f.name);await saveX(a,f.name);await saveParsed(parsed);status.textContent="
-          if old not in s: raise SystemExit('file parse target not found')
-          s=s.replace(old,new)
-          old="const deferred=async()=>{try{const s=await loadX();if(s)await parse(s.data,s.fileName,s.savedAt)}catch{}};"
-          new="const deferred=async()=>{try{const c=await loadParsed();if(c&&c.rows&&c.dateColumns){rows=c.rows;headerRowIndex=c.headerRowIndex;nameColIndex=c.nameColIndex;codeColIndex=c.codeColIndex;dateColumns=c.dateColumns;savedBox.hidden=false;savedName.textContent=c.fileName||'保存済みシフト表';savedDate.textContent=c.savedAt?`保存日時：${new Date(c.savedAt).toLocaleString('ja-JP')}`:'';fileLabel.textContent='シフト表を更新';status.textContent=`保存済みシフトを使用中（${dateColumns[0]?.iso||'?'} ～ ${dateColumns.at(-1)?.iso||'?'}）`;updateShift();return}const x=await loadX();if(x){const parsed=await parse(x.data,x.fileName,x.savedAt);await saveParsed(parsed)}}catch{}};"
-          if old not in s: raise SystemExit('deferred target not found')
-          s=s.replace(old,new)
+
+          reps=[
+            (
+              'const DEFAULTS={monthlyGoal:"販買以外の業務を部門でできるようにしていく\\nお客様に向かう行動を常にしタイミングに振り回されないようにする",dailyTodo:"pos点検、退勤時AV情報POS締め",earlyTodo:"ゲーム在庫確認、展示デモオンPCコーナーからゲームコーナー前レジ横のモニター左右まで\\npcコーナーpop更新、古物確認"};',
+              'const DEFAULTS={monthlyGoal:"販買以外の業務を部門でできるようにしていく\\nお客様に向かう行動を常にしタイミングに振り回されないようにする",dailyTodo:"pos点検、退勤時AV情報POS締め",earlyTodo:"ゲーム在庫確認、展示デモオンPCコーナーからゲームコーナー前レジ横のモニター左右まで\\npcコーナーpop更新、古物確認",lateTodo:"デモオフ"};'
+            ),
+            (
+              '["earlyTodo","早番todo","text"],["beforeGoal"',
+              '["earlyTodo","早番todo","text"],["lateTodo","遅番todo","text"],["beforeGoal"'
+            ),
+            (
+              'legacy=["staffMembers","dailyTodo","earlyTodo","beforeGoal"',
+              'legacy=["staffMembers","dailyTodo","earlyTodo","lateTodo","beforeGoal"'
+            ),
+            (
+              "earlyTodo:DEFAULTS.earlyTodo,beforeGoal:''",
+              "earlyTodo:DEFAULTS.earlyTodo,lateTodo:DEFAULTS.lateTodo,beforeGoal:''"
+            ),
+            (
+              "if(id==='earlyTodo'&&!selectedShift.includes('早'))continue;h+=",
+              "if(id==='earlyTodo'&&!selectedShift.includes('早'))continue;if(id==='lateTodo'&&!isLateShift(selectedShift))continue;h+="
+            ),
+            (
+              "if(id==='earlyTodo'&&!selectedShift.includes('早'))continue;o.push",
+              "if(id==='earlyTodo'&&!selectedShift.includes('早'))continue;if(id==='lateTodo'&&!isLateShift(selectedShift))continue;o.push"
+            )
+          ]
+          for old,new in reps:
+            if old not in s:
+              raise SystemExit('target not found: '+old[:80])
+            s=s.replace(old,new,1)
+
+          marker='function updateShift(){selectedShift=' 
+          idx=s.find(marker)
+          if idx<0:
+            raise SystemExit('updateShift marker not found')
+          helpers="""function isOffShift(v){const x=clean(v);return !x||['休','公','有','年','欠','休み','公休','有休','有給','年休','欠勤'].some(k=>x===k||x.includes(k))}\nfunction isLateShift(v){const x=clean(v);return x.includes('遅')||/20\\s*[:：]?\\s*30/.test(x)}\nfunction selfShiftAt(day){const di=dateColumns.find(x=>x.iso===day);if(!di||!rows)return null;for(let r=headerRowIndex+1;r<rows.length;r++){const row=rows[r]||[],name=clean(row[nameColIndex]);if(name.includes(SELF))return clean(row[di.col])}return null}\nfunction applyScheduledTodos(d){const dt=new Date(date.value+'T00:00:00'),w=dt.getDay();let addAdmin=false;if(w===1&&!isOffShift(selectedShift))addAdmin=true;else if(w===2){const m=new Date(dt);m.setDate(m.getDate()-1);const mon=selfShiftAt(iso(m));if(mon!==null&&isOffShift(mon))addAdmin=true}if(addAdmin&&!String(d.dailyTodo||'').split(/\\r?\\n/).map(x=>x.trim()).includes('庶務発注'))d.dailyTodo=[d.dailyTodo,'庶務発注'].filter(Boolean).join('\\n')}\n"""
+          s=s[:idx]+helpers+s[idx:]
+
+          old="const d=data();if(!d.staffMembersManual){d.staffMembers=members.join('\\n');localStorage.setItem(dayKey(),JSON.stringify(d));}"
+          new="const d=data();applyScheduledTodos(d);if(!d.staffMembersManual)d.staffMembers=members.join('\\n');localStorage.setItem(dayKey(),JSON.stringify(d));"
+          if old not in s:
+            raise SystemExit('updateShift save target not found')
+          s=s.replace(old,new,1)
+
           p.write_text(s)
           PY
       - name: Commit change
@@ -43,5 +68,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Cache parsed shift data for faster startup'
+          git commit -m 'Add weekly admin and late shift todos'
           git push
