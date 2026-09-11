@@ -1,4 +1,4 @@
-name: Add cross-device backup and restore
+name: Set home screen icon
 on:
   push:
     paths:
@@ -10,35 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch backup restore
+      - name: Add home screen icon metadata
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text()
-
-          old='<div id="status" class="status">初回だけシフト表Excelを登録してください。</div></div>\n  <button id="deleteReportDataBtn" class="danger">日報の保存データを削除</button>'
-          new='<div id="status" class="status">初回だけシフト表Excelを登録してください。</div></div>\n  <div class="sectionCard"><h3>端末引き継ぎ</h3><div class="small">日報・設定・保存済みシフト表を1つのファイルにまとめて移せます。</div><button id="exportBackupBtn" class="copyBtn" type="button">引き継ぎデータを書き出す</button><label class="fileButton" for="importBackupFile">引き継ぎデータを読み込む</label><input id="importBackupFile" type="file" accept=".json,application/json"><div id="backupStatus" class="status"></div></div>\n  <button id="deleteReportDataBtn" class="danger">日報の保存データを削除</button>'
-          if old not in s: raise SystemExit('UI target not found')
-          s=s.replace(old,new,1)
-
-          old="async function loadX(){const db=await odb();return new Promise((ok,no)=>{const t=db.transaction(STORE,'readonly'),r=t.objectStore(STORE).get(REC);r.onsuccess=()=>ok(r.result||null);r.onerror=()=>no(r.error)})}"
-          new="async function loadX(){const db=await odb();return new Promise((ok,no)=>{const t=db.transaction(STORE,'readonly'),r=t.objectStore(STORE).get(REC);r.onsuccess=()=>ok(r.result||null);r.onerror=()=>no(r.error)})}async function putXRecord(v){const db=await odb();return new Promise((ok,no)=>{const t=db.transaction(STORE,'readwrite');t.objectStore(STORE).put(v,REC);t.oncomplete=ok;t.onerror=()=>no(t.error)})}"
-          if old not in s: raise SystemExit('loadX target not found')
-          s=s.replace(old,new,1)
-
-          marker="let xp=null;function ensureX()"
-          idx=s.find(marker)
-          if idx<0: raise SystemExit('helper marker not found')
-          helpers="""function abToB64(buf){const bytes=new Uint8Array(buf),chunk=0x8000;let out='';for(let i=0;i<bytes.length;i+=chunk)out+=String.fromCharCode(...bytes.subarray(i,i+chunk));return btoa(out)}\nfunction b64ToAb(s){const bin=atob(s),a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return a.buffer}\nasync function exportBackup(){const st=$('backupStatus');try{st.textContent='引き継ぎデータを作成しています…';const storage={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(PREFIX))storage[k]=localStorage.getItem(k)}const x=await loadX();const backup={app:'shiftyomitori',version:1,exportedAt:new Date().toISOString(),localStorage:storage,shift:null};if(x&&x.data)backup.shift={fileName:x.fileName||'shift.xlsx',savedAt:x.savedAt||null,data:abToB64(x.data)};const blob=new Blob([JSON.stringify(backup)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`日報引き継ぎ_${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);st.textContent='書き出しました。新しい端末でこのファイルを読み込んでください。'}catch(e){st.textContent=`書き出しエラー：${e.message}`}}\nasync function importBackup(f){const st=$('backupStatus');try{st.textContent='引き継ぎデータを読み込んでいます…';const b=JSON.parse(await f.text());if(b?.app!=='shiftyomitori'||!b.localStorage)throw Error('このアプリの引き継ぎファイルではありません');for(const [k,v] of Object.entries(b.localStorage))if(k.startsWith(PREFIX))localStorage.setItem(k,String(v));if(b.shift?.data){const rec={data:b64ToAb(b.shift.data),fileName:b.shift.fileName||'shift.xlsx',savedAt:b.shift.savedAt||new Date().toISOString()};await putXRecord(rec);const parsed=await parse(rec.data,rec.fileName,rec.savedAt);await saveParsed(parsed)}st.textContent='引き継ぎが完了しました。';load();alert('引き継ぎが完了しました')}catch(e){st.textContent=`読み込みエラー：${e.message}`}}\n"""
-          s=s[:idx]+helpers+s[idx:]
-
-          marker2="file.onchange=async()=>"
-          idx2=s.find(marker2)
-          if idx2<0: raise SystemExit('event marker not found')
-          events="$('exportBackupBtn').onclick=exportBackup;$('importBackupFile').onchange=async e=>{const f=e.target.files?.[0];if(f)await importBackup(f);e.target.value=''};"
-          s=s[:idx2]+events+s[idx2:]
-
+          icon='https://raw.githubusercontent.com/ryofukazawa324-ai/shiftyomitori/d909b77642a4fb5cc676ef944cdcddc3d78e8fd8/apple-touch-icon.png'
+          tags=f'<link rel="apple-touch-icon" sizes="180x180" href="{icon}">\n<link rel="icon" type="image/png" href="{icon}">\n<meta name="apple-mobile-web-app-capable" content="yes">\n<meta name="apple-mobile-web-app-title" content="日報作成">\n'
+          if 'rel="apple-touch-icon"' in s:
+            import re
+            s=re.sub(r'<link rel="apple-touch-icon"[^>]*>\s*', '', s)
+          if '<head>' not in s: raise SystemExit('head not found')
+          s=s.replace('<head>','<head>\n'+tags,1)
           p.write_text(s)
           PY
       - name: Commit change
@@ -46,5 +30,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Add cross-device backup and restore'
+          git commit -m 'Set tortoise and hare home screen icon'
           git push
