@@ -1,4 +1,4 @@
-name: Reuse custom sections across dates
+name: Toggle custom section visibility
 on:
   push:
     paths:
@@ -10,46 +10,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Make custom section templates global
+      - name: Add visibility toggle for custom sections
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text()
 
-          old="const iso=d=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)},dayKey=()=>`${PREFIX}day:${date.value}`,monthKey=()=>`${PREFIX}month:${date.value.slice(0,7)}`,cfgKey=`${PREFIX}sectionConfig`,orderKey=`${PREFIX}sectionOrder`,customKey=()=>`${dayKey()}:customSections`,layoutKey=()=>`${dayKey()}:layoutOrder`;"
-          new="const iso=d=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)},dayKey=()=>`${PREFIX}day:${date.value}`,monthKey=()=>`${PREFIX}month:${date.value.slice(0,7)}`,cfgKey=`${PREFIX}sectionConfig`,orderKey=`${PREFIX}sectionOrder`,customDefsKey=`${PREFIX}customSectionDefs`,customBodyKey=(day=date.value)=>`${PREFIX}day:${day}:customBodies`,legacyCustomKey=(day=date.value)=>`${PREFIX}day:${day}:customSections`,customKey=()=>legacyCustomKey(),layoutKey=`${PREFIX}layoutOrder`;"
-          if old not in s: raise SystemExit('keys target missing')
+          s=s.replace("a=old.map(x=>({title:String(x.title||'新しい項目').replace(/^◆+/, '')}))","a=old.map(x=>({title:String(x.title||'新しい項目').replace(/^◆+/, ''),hidden:!!x.hidden}))")
+          s=s.replace("function saveCustomDefs(a){localStorage.setItem(customDefsKey,JSON.stringify(a.map(x=>({title:String(x.title||'新しい項目').replace(/^◆+/, '')}))))}","function saveCustomDefs(a){localStorage.setItem(customDefsKey,JSON.stringify(a.map(x=>({title:String(x.title||'新しい項目').replace(/^◆+/, ''),hidden:!!x.hidden}))))}")
+
+          s=s.replace("if(tok.startsWith('c:')){const i=+tok.slice(2),x=cs[i];if(!x)continue;h+=`<div class=\"sectionCard\">","if(tok.startsWith('c:')){const i=+tok.slice(2),x=cs[i];if(!x||x.hidden)continue;h+=`<div class=\"sectionCard\">")
+          s=s.replace("if(tok.startsWith('c:')){const x=cs[+tok.slice(2)];if(x)o.push('',`◆${String(x.title||'新しい項目').replace(/^◆+/,'')}`,x.body||'');continue}","if(tok.startsWith('c:')){const x=cs[+tok.slice(2)];if(x&&!x.hidden)o.push('',`◆${String(x.title||'新しい項目').replace(/^◆+/,'')}`,x.body||'');continue}")
+
+          old="return`<div class=\"customRow\"><div class=\"sectionNameWrap\"><input data-cn=\"${n}\" value=\"${esc(String(x.title||'新しい項目').replace(/^◆+/,''))}\"></div><div class=\"orderBtns\"><button class=\"orderBtn\" data-move=\"${tok}\" data-dir=\"-1\" ${i===0?'disabled':''}>↑</button><button class=\"orderBtn\" data-move=\"${tok}\" data-dir=\"1\" ${i===a.length-1?'disabled':''}>↓</button></div><button class=\"removeBtn\" data-cr=\"${n}\">削除</button></div>`"
+          new="return`<div class=\"customRow\"><div class=\"sectionNameWrap\"><input data-cn=\"${n}\" value=\"${esc(String(x.title||'新しい項目').replace(/^◆+/,''))}\"></div><div class=\"orderBtns\"><button class=\"orderBtn\" data-move=\"${tok}\" data-dir=\"-1\" ${i===0?'disabled':''}>↑</button><button class=\"orderBtn\" data-move=\"${tok}\" data-dir=\"1\" ${i===a.length-1?'disabled':''}>↓</button></div><label class=\"showLabel\"><input type=\"checkbox\" data-cshow=\"${n}\" ${x.hidden?'':'checked'}> 表示</label><button class=\"removeBtn\" data-cr=\"${n}\">削除</button></div>`"
+          if old not in s: raise SystemExit('custom row target missing')
           s=s.replace(old,new,1)
 
-          old="function cfg(){let s={};try{s=JSON.parse(localStorage.getItem(cfgKey)||'{}')}catch{};return Object.fromEntries(defs.map(d=>[d[0],{title:String(s[d[0]]?.title||d[1]).replace(/^◆+/,''),hidden:!!s[d[0]]?.hidden}]))}function order(){try{const a=JSON.parse(localStorage.getItem(orderKey)||'[]');return[...a.filter(x=>ids.includes(x)),...ids.filter(x=>!a.includes(x))]}catch{return[...ids]}}function title(id){return cfg()[id]?.title||id}function visible(id){return !cfg()[id]?.hidden}function customs(){try{return JSON.parse(localStorage.getItem(customKey())||'[]')}catch{return[]}}function combinedOrder(){const c=customs(),valid=[...order().map(id=>'s:'+id),...c.map((_,i)=>'c:'+i)];let a=[];try{a=JSON.parse(localStorage.getItem(layoutKey())||'[]')}catch{};a=a.filter(x=>valid.includes(x));return[...a,...valid.filter(x=>!a.includes(x))]}function saveCombined(a){localStorage.setItem(layoutKey(),JSON.stringify(a));localStorage.setItem(orderKey,JSON.stringify(a.filter(x=>x.startsWith('s:')).map(x=>x.slice(2))))}"
-          new="function cfg(){let s={};try{s=JSON.parse(localStorage.getItem(cfgKey)||'{}')}catch{};return Object.fromEntries(defs.map(d=>[d[0],{title:String(s[d[0]]?.title||d[1]).replace(/^◆+/,''),hidden:!!s[d[0]]?.hidden}]))}function order(){try{const a=JSON.parse(localStorage.getItem(orderKey)||'[]');return[...a.filter(x=>ids.includes(x)),...ids.filter(x=>!a.includes(x))]}catch{return[...ids]}}function title(id){return cfg()[id]?.title||id}function visible(id){return !cfg()[id]?.hidden}function customDefs(){let a=[];try{a=JSON.parse(localStorage.getItem(customDefsKey)||'[]')}catch{};if(!a.length){let old=[];try{old=JSON.parse(localStorage.getItem(legacyCustomKey())||'[]')}catch{};if(!old.length){for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(PREFIX+'day:')&&k.endsWith(':customSections')){try{old=JSON.parse(localStorage.getItem(k)||'[]')}catch{};if(old.length)break}}}if(old.length){a=old.map(x=>({title:String(x.title||'新しい項目').replace(/^◆+/, '')}));localStorage.setItem(customDefsKey,JSON.stringify(a))}}return a}function customBodies(day=date.value){let a=[];try{a=JSON.parse(localStorage.getItem(customBodyKey(day))||'[]')}catch{};if(!a.length){try{const old=JSON.parse(localStorage.getItem(legacyCustomKey(day))||'[]');if(old.length){a=old.map(x=>x.body||'');localStorage.setItem(customBodyKey(day),JSON.stringify(a))}}catch{}}return a}function customs(day=date.value){const d=customDefs(),b=customBodies(day);return d.map((x,i)=>({...x,body:b[i]||''}))}function saveCustomDefs(a){localStorage.setItem(customDefsKey,JSON.stringify(a.map(x=>({title:String(x.title||'新しい項目').replace(/^◆+/, '')}))))}function saveCustomBody(i,v){const a=customBodies();while(a.length<customDefs().length)a.push('');a[i]=v;localStorage.setItem(customBodyKey(),JSON.stringify(a))}function combinedOrder(){const c=customDefs(),valid=[...order().map(id=>'s:'+id),...c.map((_,i)=>'c:'+i)];let a=[];try{a=JSON.parse(localStorage.getItem(layoutKey)||'[]')}catch{};if(!a.length){try{a=JSON.parse(localStorage.getItem(`${dayKey()}:layoutOrder`)||'[]')}catch{}}a=a.filter(x=>valid.includes(x));return[...a,...valid.filter(x=>!a.includes(x))]}function saveCombined(a){localStorage.setItem(layoutKey,JSON.stringify(a));localStorage.setItem(orderKey,JSON.stringify(a.filter(x=>x.startsWith('s:')).map(x=>x.slice(2))))}"
-          if old not in s: raise SystemExit('custom helper target missing')
+          old="$(\"sectionSettings\").querySelectorAll('[data-cn]').forEach(e=>e.oninput=()=>{const x=customDefs();x[+e.dataset.cn].title=String(e.value).replace(/^◆+/,'');saveCustomDefs(x);build();render()});$(\"sectionSettings\").querySelectorAll('[data-move]')"
+          new="$(\"sectionSettings\").querySelectorAll('[data-cn]').forEach(e=>e.oninput=()=>{const x=customDefs();x[+e.dataset.cn].title=String(e.value).replace(/^◆+/,'');saveCustomDefs(x);build();render()});$(\"sectionSettings\").querySelectorAll('[data-cshow]').forEach(e=>e.onchange=()=>{const x=customDefs();x[+e.dataset.cshow].hidden=!e.checked;saveCustomDefs(x);build();render()});$(\"sectionSettings\").querySelectorAll('[data-move]')"
+          if old not in s: raise SystemExit('custom handler target missing')
           s=s.replace(old,new,1)
 
-          old="edit.querySelectorAll('[data-cb]').forEach(e=>e.oninput=()=>{const a=customs();a[+e.dataset.cb].body=e.value;localStorage.setItem(customKey(),JSON.stringify(a));render()});"
-          new="edit.querySelectorAll('[data-cb]').forEach(e=>e.oninput=()=>{saveCustomBody(+e.dataset.cb,e.value);render()});"
-          if old not in s: raise SystemExit('body save target missing')
-          s=s.replace(old,new,1)
-
-          old="$(\"sectionSettings\").querySelectorAll('[data-cn]').forEach(e=>e.oninput=()=>{const x=customs();x[+e.dataset.cn].title=String(e.value).replace(/^◆+/,'');localStorage.setItem(customKey(),JSON.stringify(x));build();render()});"
-          new="$(\"sectionSettings\").querySelectorAll('[data-cn]').forEach(e=>e.oninput=()=>{const x=customDefs();x[+e.dataset.cn].title=String(e.value).replace(/^◆+/,'');saveCustomDefs(x);build();render()});"
-          if old not in s: raise SystemExit('title save target missing')
-          s=s.replace(old,new,1)
-
-          old="function removeCustom(n){const x=customs();x.splice(n,1);localStorage.setItem(customKey(),JSON.stringify(x));const a=combinedOrder().filter(t=>t!==`c:${n}`).map(t=>t.startsWith('c:')&&+t.slice(2)>n?`c:${+t.slice(2)-1}`:t);saveCombined(a);settings();build();render()}"
-          new="function removeCustom(n){const x=customDefs();x.splice(n,1);saveCustomDefs(x);const b=customBodies();b.splice(n,1);localStorage.setItem(customBodyKey(),JSON.stringify(b));const a=combinedOrder().filter(t=>t!==`c:${n}`).map(t=>t.startsWith('c:')&&+t.slice(2)>n?`c:${+t.slice(2)-1}`:t);saveCombined(a);settings();build();render()}"
-          if old not in s: raise SystemExit('remove target missing')
-          s=s.replace(old,new,1)
-
-          old="$(\"addSectionFromSettingsBtn\").onclick=()=>{const a=customs();a.push({title:'新しい項目',body:''});localStorage.setItem(customKey(),JSON.stringify(a));const x=combinedOrder();const tok=`c:${a.length-1}`;if(!x.includes(tok))x.push(tok);saveCombined(x);settings();build();render()};"
-          new="$(\"addSectionFromSettingsBtn\").onclick=()=>{const a=customDefs();a.push({title:'新しい項目'});saveCustomDefs(a);const b=customBodies();while(b.length<a.length)b.push('');localStorage.setItem(customBodyKey(),JSON.stringify(b));const x=combinedOrder();const tok=`c:${a.length-1}`;if(!x.includes(tok))x.push(tok);saveCombined(x);settings();build();render()};"
-          if old not in s: raise SystemExit('add target missing')
-          s=s.replace(old,new,1)
-
-          old="try{const cs=JSON.parse(localStorage.getItem(`${PREFIX}day:${day}:customSections`)||'[]');cs.forEach(x=>{if(String(x.body||'').trim())out.push(`◆${String(x.title||'追加項目').replace(/^◆+/,'')}\\n${String(x.body).trim()}`)})}catch{}"
-          new="try{customs(day).forEach(x=>{if(String(x.body||'').trim())out.push(`◆${String(x.title||'追加項目').replace(/^◆+/,'')}\\n${String(x.body).trim()}`)})}catch{}"
-          if old in s:s=s.replace(old,new,1)
+          s=s.replace("a.push({title:'新しい項目'});saveCustomDefs(a)","a.push({title:'新しい項目',hidden:false});saveCustomDefs(a)")
 
           p.write_text(s)
           PY
@@ -58,5 +42,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Reuse custom sections across dates'
+          git commit -m 'Add visibility toggle for custom sections'
           git push
