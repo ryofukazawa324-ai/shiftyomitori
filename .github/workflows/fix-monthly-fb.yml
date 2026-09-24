@@ -1,4 +1,4 @@
-name: Toggle custom section visibility
+name: Configure shift member range
 on:
   push:
     paths:
@@ -10,30 +10,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add visibility toggle for custom sections
+      - name: Patch shift range settings
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text()
 
-          s=s.replace("a=old.map(x=>({title:String(x.title||'新しい項目').replace(/^◆+/, '')}))","a=old.map(x=>({title:String(x.title||'新しい項目').replace(/^◆+/, ''),hidden:!!x.hidden}))")
-          s=s.replace("function saveCustomDefs(a){localStorage.setItem(customDefsKey,JSON.stringify(a.map(x=>({title:String(x.title||'新しい項目').replace(/^◆+/, '')}))))}","function saveCustomDefs(a){localStorage.setItem(customDefsKey,JSON.stringify(a.map(x=>({title:String(x.title||'新しい項目').replace(/^◆+/, ''),hidden:!!x.hidden}))))}")
+          s=s.replace('>この月のFBをChatGPTにお願い</button>','>FB相談</button>',1)
 
-          s=s.replace("if(tok.startsWith('c:')){const i=+tok.slice(2),x=cs[i];if(!x)continue;h+=`<div class=\"sectionCard\">","if(tok.startsWith('c:')){const i=+tok.slice(2),x=cs[i];if(!x||x.hidden)continue;h+=`<div class=\"sectionCard\">")
-          s=s.replace("if(tok.startsWith('c:')){const x=cs[+tok.slice(2)];if(x)o.push('',`◆${String(x.title||'新しい項目').replace(/^◆+/,'')}`,x.body||'');continue}","if(tok.startsWith('c:')){const x=cs[+tok.slice(2)];if(x&&!x.hidden)o.push('',`◆${String(x.title||'新しい項目').replace(/^◆+/,'')}`,x.body||'');continue}")
-
-          old="return`<div class=\"customRow\"><div class=\"sectionNameWrap\"><input data-cn=\"${n}\" value=\"${esc(String(x.title||'新しい項目').replace(/^◆+/,''))}\"></div><div class=\"orderBtns\"><button class=\"orderBtn\" data-move=\"${tok}\" data-dir=\"-1\" ${i===0?'disabled':''}>↑</button><button class=\"orderBtn\" data-move=\"${tok}\" data-dir=\"1\" ${i===a.length-1?'disabled':''}>↓</button></div><button class=\"removeBtn\" data-cr=\"${n}\">削除</button></div>`"
-          new="return`<div class=\"customRow\"><div class=\"sectionNameWrap\"><input data-cn=\"${n}\" value=\"${esc(String(x.title||'新しい項目').replace(/^◆+/,''))}\"></div><div class=\"orderBtns\"><button class=\"orderBtn\" data-move=\"${tok}\" data-dir=\"-1\" ${i===0?'disabled':''}>↑</button><button class=\"orderBtn\" data-move=\"${tok}\" data-dir=\"1\" ${i===a.length-1?'disabled':''}>↓</button></div><label class=\"showLabel\"><input type=\"checkbox\" data-cshow=\"${n}\" ${x.hidden?'':'checked'}> 表示</label><button class=\"removeBtn\" data-cr=\"${n}\">削除</button></div>`"
-          if old not in s: raise SystemExit('custom row target missing')
+          old='<div id="sectionSettings"></div><button id="addSectionFromSettingsBtn" class="copyBtn">＋ 項目を追加</button>'
+          new='''<div id="sectionSettings"></div><button id="addSectionFromSettingsBtn" class="copyBtn">＋ 項目を追加</button><div class="sectionCard" style="margin-top:16px"><h3>出勤メンバー自動読み込み</h3><div class="small">シフト表で「この名前から、この名前まで」を出勤メンバーとして自動読み込みします。</div><div class="twoCol" style="margin-top:10px"><div><label>この名前から</label><input id="staffRangeStart" type="text" placeholder="例：幸田"></div><div><label>この名前まで</label><input id="staffRangeEnd" type="text" placeholder="例：小西"></div></div><button id="saveStaffRangeBtn" class="copyBtn" type="button">読み込み範囲を保存</button><div id="staffRangeStatus" class="status"></div></div>'''
+          if old not in s: raise SystemExit('section menu target missing')
           s=s.replace(old,new,1)
 
-          old="$(\"sectionSettings\").querySelectorAll('[data-cn]').forEach(e=>e.oninput=()=>{const x=customDefs();x[+e.dataset.cn].title=String(e.value).replace(/^◆+/,'');saveCustomDefs(x);build();render()});$(\"sectionSettings\").querySelectorAll('[data-move]')"
-          new="$(\"sectionSettings\").querySelectorAll('[data-cn]').forEach(e=>e.oninput=()=>{const x=customDefs();x[+e.dataset.cn].title=String(e.value).replace(/^◆+/,'');saveCustomDefs(x);build();render()});$(\"sectionSettings\").querySelectorAll('[data-cshow]').forEach(e=>e.onchange=()=>{const x=customDefs();x[+e.dataset.cshow].hidden=!e.checked;saveCustomDefs(x);build();render()});$(\"sectionSettings\").querySelectorAll('[data-move]')"
-          if old not in s: raise SystemExit('custom handler target missing')
+          old='customKey=()=>legacyCustomKey(),layoutKey=`${PREFIX}layoutOrder`;'
+          new='customKey=()=>legacyCustomKey(),layoutKey=`${PREFIX}layoutOrder`,staffRangeKey=`${PREFIX}staffRange`;'
+          if old not in s: raise SystemExit('key target missing')
           s=s.replace(old,new,1)
 
-          s=s.replace("a.push({title:'新しい項目'});saveCustomDefs(a)","a.push({title:'新しい項目',hidden:false});saveCustomDefs(a)")
+          old="function header(){const d=new Date(date.value+'T00:00:00');$(\"reportHeader\").textContent=`${d.getMonth()+1}月${d.getDate()}日　ミッテン府中店　情報部門　${DISPLAY}`}"
+          new="function staffRange(){try{return{start:'幸田',end:'小西',...JSON.parse(localStorage.getItem(staffRangeKey)||'{}')}}catch{return{start:'幸田',end:'小西'}}}function setupStaffRange(){const r=staffRange(),a=$(\"staffRangeStart\"),b=$(\"staffRangeEnd\");if(!a||!b)return;a.value=r.start||'';b.value=r.end||'';const btn=$(\"saveStaffRangeBtn\");if(btn)btn.onclick=()=>{const v={start:a.value.trim(),end:b.value.trim()};if(!v.start||!v.end){$(\"staffRangeStatus\").textContent='開始と終了の名前を両方入力してください。';return}localStorage.setItem(staffRangeKey,JSON.stringify(v));$(\"staffRangeStatus\").textContent=`${v.start} から ${v.end} までを読み込みます。`;const d=data();d.staffMembersManual=false;localStorage.setItem(dayKey(),JSON.stringify(d));updateShift()}}function header(){const d=new Date(date.value+'T00:00:00');$(\"reportHeader\").textContent=`${d.getMonth()+1}月${d.getDate()}日　ミッテン府中店　情報部門　${DISPLAY}`}"
+          if old not in s: raise SystemExit('header target missing')
+          s=s.replace(old,new,1)
+
+          old="if(m==='view')render();if(m==='section')settings()}"
+          new="if(m==='view')render();if(m==='section'){settings();setupStaffRange()}}"
+          if old not in s: raise SystemExit('mode target missing')
+          s=s.replace(old,new,1)
+
+          old="let start=-1,end=-1;for(let r=headerRowIndex+1;r<rows.length;r++){const name=clean((rows[r]||[])[nameColIndex]);if(start<0&&name.includes('幸田'))start=r;if(start>=0&&name.includes('小西')){end=r;break}}if(start<0)start=headerRowIndex+1;if(end<start)end=Math.min(rows.length-1,start+30);"
+          new="let start=-1,end=-1;const range=staffRange();for(let r=headerRowIndex+1;r<rows.length;r++){const name=clean((rows[r]||[])[nameColIndex]);if(start<0&&name.includes(range.start))start=r;if(start>=0&&name.includes(range.end)){end=r;break}}if(start<0||end<start){$(\"shiftInfo\").textContent=`シフト：出勤メンバー範囲「${range.start} ～ ${range.end}」が見つかりません`;build();render();return}"
+          if old not in s: raise SystemExit('range target missing')
+          s=s.replace(old,new,1)
 
           p.write_text(s)
           PY
@@ -42,5 +51,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Add visibility toggle for custom sections'
+          git commit -m 'Configure shift member range and rename FB button'
           git push
