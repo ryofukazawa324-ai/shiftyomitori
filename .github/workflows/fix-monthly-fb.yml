@@ -1,4 +1,4 @@
-name: Blank main staff for new users
+name: Fix shift loader startup
 on:
   push:
     paths:
@@ -10,29 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Migrate existing user and blank new-user default
+      - name: Fix initialization order
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text()
-
-          old="function mainStaff(){return (localStorage.getItem(mainStaffKey)||DISPLAY).trim()||DISPLAY}function staffMatch(name){const m=mainStaff();return name===m||name.includes(m)||m.includes(name)}"
-          new="function mainStaff(){return (localStorage.getItem(mainStaffKey)||'').trim()}function staffMatch(name){const m=mainStaff();return !!m&&(name===m||name.includes(m)||m.includes(name))}"
-          if old not in s: raise SystemExit('mainStaff target missing')
-          s=s.replace(old,new,1)
-
-          old='function setupMainStaff(){const e=$("mainStaffName");if(!e)return;e.value=mainStaff();'
-          new='function setupMainStaff(){const e=$("mainStaffName");if(!e)return;e.value=mainStaff();'
-          if old not in s: raise SystemExit('setup target missing')
-
-          marker='const iso=d=>{'
-          migration="if(!localStorage.getItem(mainStaffKey)){let hasExisting=false;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(PREFIX+'day:')){hasExisting=true;break}}if(hasExisting)localStorage.setItem(mainStaffKey,DISPLAY)}\n"
-          if migration not in s:
-              pos=s.index(marker)
-              if pos<0: raise SystemExit('migration marker missing')
-              s=s[:pos]+migration+s[pos:]
-
+          migration="if(!localStorage.getItem(mainStaffKey)){let hasExisting=false;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(PREFIX+'day:')){hasExisting=true;break}}if(hasExisting)localStorage.setItem(mainStaffKey,DISPLAY)}"
+          if migration not in s: raise SystemExit('migration not found')
+          s=s.replace(migration+'\n','',1)
+          key_end='mainStaffKey=`${PREFIX}mainStaff`;'
+          if key_end not in s: raise SystemExit('key declaration not found')
+          s=s.replace(key_end,key_end+'\n'+migration,1)
           p.write_text(s)
           PY
       - name: Commit change
@@ -40,5 +29,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Blank main staff for new users while preserving existing setup'
+          git commit -m 'Fix shift loader initialization order'
           git push
