@@ -1,4 +1,4 @@
-name: Configure main staff
+name: Blank main staff for new users
 on:
   push:
     paths:
@@ -10,40 +10,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch main staff setting
+      - name: Migrate existing user and blank new-user default
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text()
 
-          old='<div class="sectionCard" style="margin-top:16px"><h3>出勤メンバー自動読み込み</h3>'
-          new='''<div class="sectionCard" style="margin-top:16px"><h3>日報のメイン担当者</h3><div class="small">ここで選んだ名前を日報の本人として扱います。シフト表から本人の勤務区分を読み取り、早番todo・遅番todoなども自動反映します。</div><div style="margin-top:10px"><label>メインにする名前</label><input id="mainStaffName" type="text" placeholder="例：深澤椋"></div><button id="saveMainStaffBtn" class="copyBtn" type="button">メイン担当者を保存</button><div id="mainStaffStatus" class="status"></div></div><div class="sectionCard" style="margin-top:16px"><h3>出勤メンバー自動読み込み</h3>'''
-          if old not in s: raise SystemExit('menu target missing')
+          old="function mainStaff(){return (localStorage.getItem(mainStaffKey)||DISPLAY).trim()||DISPLAY}function staffMatch(name){const m=mainStaff();return name===m||name.includes(m)||m.includes(name)}"
+          new="function mainStaff(){return (localStorage.getItem(mainStaffKey)||'').trim()}function staffMatch(name){const m=mainStaff();return !!m&&(name===m||name.includes(m)||m.includes(name))}"
+          if old not in s: raise SystemExit('mainStaff target missing')
           s=s.replace(old,new,1)
 
-          old='layoutKey=`${PREFIX}layoutOrder`,staffRangeKey=`${PREFIX}staffRange`;'
-          new='layoutKey=`${PREFIX}layoutOrder`,staffRangeKey=`${PREFIX}staffRange`,mainStaffKey=`${PREFIX}mainStaff`;'
-          if old not in s: raise SystemExit('key target missing')
-          s=s.replace(old,new,1)
-
-          s=s.replace('function staffRange(){',"function mainStaff(){return (localStorage.getItem(mainStaffKey)||DISPLAY).trim()||DISPLAY}function staffMatch(name){const m=mainStaff();return name===m||name.includes(m)||m.includes(name)}function staffRange(){",1)
-
-          old='function setupStaffRange(){'
-          new='''function setupMainStaff(){const e=$("mainStaffName");if(!e)return;e.value=mainStaff();const btn=$("saveMainStaffBtn");if(btn)btn.onclick=()=>{const v=e.value.trim();if(!v){$("mainStaffStatus").textContent='名前を入力してください。';return}localStorage.setItem(mainStaffKey,v);$("mainStaffStatus").textContent=`${v} をメイン担当者にしました。`;selectedShift='';header();updateShift()}}function setupStaffRange(){'''
+          old='function setupMainStaff(){const e=$("mainStaffName");if(!e)return;e.value=mainStaff();'
+          new='function setupMainStaff(){const e=$("mainStaffName");if(!e)return;e.value=mainStaff();'
           if old not in s: raise SystemExit('setup target missing')
-          s=s.replace(old,new,1)
 
-          s=s.replace('情報部門　${DISPLAY}`}', '情報部門　${mainStaff()}`}',1)
-          s=s.replace('情報部門　${DISPLAY}`],cs=customs()', '情報部門　${mainStaff()}`],cs=customs()',1)
-
-          old="if(m==='view')render();if(m==='section'){settings();setupStaffRange()}}"
-          new="if(m==='view')render();if(m==='section'){settings();setupMainStaff();setupStaffRange()}}"
-          if old not in s: raise SystemExit('mode target missing')
-          s=s.replace(old,new,1)
-
-          s=s.replace("if(name.includes(SELF))return clean(row[di.col])", "if(staffMatch(name))return clean(row[di.col])",1)
-          s=s.replace("if(name.includes(SELF))selectedShift=shift", "if(staffMatch(name))selectedShift=shift",1)
+          marker='const iso=d=>{'
+          migration="if(!localStorage.getItem(mainStaffKey)){let hasExisting=false;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(PREFIX+'day:')){hasExisting=true;break}}if(hasExisting)localStorage.setItem(mainStaffKey,DISPLAY)}\n"
+          if migration not in s:
+              pos=s.index(marker)
+              if pos<0: raise SystemExit('migration marker missing')
+              s=s[:pos]+migration+s[pos:]
 
           p.write_text(s)
           PY
@@ -52,5 +40,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Make main staff configurable for shift todos'
+          git commit -m 'Blank main staff for new users while preserving existing setup'
           git push
