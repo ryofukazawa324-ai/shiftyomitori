@@ -1,4 +1,4 @@
-name: Fix shift loader startup
+name: Carry underscore headings to next month
 on:
   push:
     paths:
@@ -10,18 +10,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Fix initialization order
+      - name: Add underscore heading carryover
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text()
-          migration="if(!localStorage.getItem(mainStaffKey)){let hasExisting=false;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(PREFIX+'day:')){hasExisting=true;break}}if(hasExisting)localStorage.setItem(mainStaffKey,DISPLAY)}"
-          if migration not in s: raise SystemExit('migration not found')
-          s=s.replace(migration+'\n','',1)
-          key_end='mainStaffKey=`${PREFIX}mainStaff`;'
-          if key_end not in s: raise SystemExit('key declaration not found')
-          s=s.replace(key_end,key_end+'\n'+migration,1)
+
+          old="function blank(){return{staffMembers:'',dailyTodo:[DEFAULTS.dailyTodo,...weekdays()].join('\\n'),earlyTodo:DEFAULTS.earlyTodo,lateTodo:DEFAULTS.lateTodo,beforeGoal:'',virtualOrder:'',salesModels:'',bbSurvey:'',oneWord:'',improve:'',stumble:'',impression:''}}function data(){try{return{...blank(),...JSON.parse(localStorage.getItem(dayKey())||'{}')}}catch{return blank()}}"
+          new="""function underscoreHeads(v){return String(v||'').split(/\\r?\\n/).map(x=>x.trim()).filter(x=>x.startsWith('_')&&x.length>1)}function previousMonthHeads(){if(!date.value)return{};const cur=date.value.slice(0,7),dt=new Date(date.value+'T00:00:00'),pm=new Date(dt.getFullYear(),dt.getMonth()-1,1),pfx=`${pm.getFullYear()}-${String(pm.getMonth()+1).padStart(2,'0')}`,out={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k||!k.startsWith(`${PREFIX}day:${pfx}-`)||k.endsWith(':customBodies')||k.endsWith(':customSections')||k.endsWith(':layoutOrder'))continue;let d={};try{d=JSON.parse(localStorage.getItem(k)||'{}')}catch{};for(const id of legacy){if(id==='staffMembers'||id==='virtualOrder'||id==='salesModels'||id==='bbSurvey')continue;const hs=underscoreHeads(d[id]);if(hs.length)(out[id]??=[]).push(...hs)}try{const cb=JSON.parse(localStorage.getItem(`${k.slice(0,`${PREFIX}day:${pfx}-`.length+2)}:customBodies`)||'[]');cb.forEach((v,n)=>{const hs=underscoreHeads(v);if(hs.length)(out[`custom:${n}`]??=[]).push(...hs)})}catch{}}for(const key of Object.keys(out))out[key]=[...new Set(out[key])];return out}function carryHeadsIntoBlank(b){if(!date.value)return b;const day=+date.value.slice(8,10);if(day>1)return b;const h=previousMonthHeads();for(const [id,a] of Object.entries(h))if(!id.startsWith('custom:')&&id in b&&a.length)b[id]=[b[id],...a].filter(Boolean).join('\\n');return b}function blank(){return carryHeadsIntoBlank({staffMembers:'',dailyTodo:[DEFAULTS.dailyTodo,...weekdays()].join('\\n'),earlyTodo:DEFAULTS.earlyTodo,lateTodo:DEFAULTS.lateTodo,beforeGoal:'',virtualOrder:'',salesModels:'',bbSurvey:'',oneWord:'',improve:'',stumble:'',impression:''})}function data(){try{return{...blank(),...JSON.parse(localStorage.getItem(dayKey())||'{}')}}catch{return blank()}}"""
+          if old not in s: raise SystemExit('blank/data target missing')
+          s=s.replace(old,new,1)
+
+          old="function customBodies(day=date.value){let a=[];try{a=JSON.parse(localStorage.getItem(customBodyKey(day))||'[]')}catch{};if(!a.length){try{const old=JSON.parse(localStorage.getItem(legacyCustomKey(day))||'[]');if(old.length){a=old.map(x=>x.body||'');localStorage.setItem(customBodyKey(day),JSON.stringify(a))}}catch{}}return a}"
+          new="function customBodies(day=date.value){let a=[];try{a=JSON.parse(localStorage.getItem(customBodyKey(day))||'[]')}catch{};if(!a.length){try{const old=JSON.parse(localStorage.getItem(legacyCustomKey(day))||'[]');if(old.length){a=old.map(x=>x.body||'');localStorage.setItem(customBodyKey(day),JSON.stringify(a))}}catch{}if(day===date.value&&+day.slice(8,10)===1){const h=previousMonthHeads();for(const [k,v] of Object.entries(h))if(k.startsWith('custom:')){const n=+k.slice(7);while(a.length<=n)a.push('');if(!a[n]&&v.length)a[n]=v.join('\\n')}}}return a}"
+          if old not in s: raise SystemExit('customBodies target missing')
+          s=s.replace(old,new,1)
+
           p.write_text(s)
           PY
       - name: Commit change
@@ -29,5 +34,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Fix shift loader initialization order'
+          git commit -m 'Carry underscore headings into next month'
           git push
