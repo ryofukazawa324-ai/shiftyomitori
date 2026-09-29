@@ -1,0 +1,81 @@
+name: Apply weather and hypothesis layout
+'on':
+  push:
+    paths:
+      - '.github/workflows/apply-weather-hypothesis-layout.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch dashboard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+
+          # Productivity guide should be the first guide above the editable report sections.
+          prod_start=s.index('  <div class="sectionCard" id="productivityGuide">')
+          prod_end=s.index('\n  <button id="monthlyFbBtn"', prod_start)
+          prod=s[prod_start:prod_end]
+          s=s[:prod_start]+s[prod_end:]
+          edit_marker='  <section id="editMode"></section>'
+          s=s.replace(edit_marker,prod+'\n'+edit_marker,1)
+
+          # Weather location setting at the bottom.
+          weather_settings='''  <div class="sectionCard"><h3>天気取得地域</h3><div class="small">本日の仮説に表示する天気の地域です。一度保存すると次回からその地域を使います。</div><div style="margin-top:10px"><label>地域</label><input id="weatherLocation" type="text" placeholder="例：東京都府中市"></div><button id="saveWeatherLocation" class="copyBtn" type="button">地域を保存</button><div id="weatherLocationStatus" class="status"></div></div>\n'''
+          backup_marker='  <div class="sectionCard"><h3>端末引き継ぎ</h3>'
+          if 'id="weatherLocation"' not in s:
+              s=s.replace(backup_marker,weather_settings+backup_marker,1)
+
+          # Keys and weather helpers.
+          key_marker='mainStaffKey=`${PREFIX}mainStaff`;'
+          if 'weatherLocationKey' not in s:
+              s=s.replace(key_marker,key_marker+'\nconst weatherLocationKey=`${PREFIX}weatherLocation`,weatherCache=new Map();',1)
+
+          helper_marker='function productivityState()'
+          weather_js=r'''function weatherLabel(code){code=+code;if(code===0||code===1)return'晴れ';if(code===2||code===3||code===45||code===48)return'曇り';return'雨'}
+async function geocodeWeatherLocation(q){const u=`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=ja&format=json`;const j=await fetch(u).then(r=>r.json());const x=j.results?.[0];if(!x)throw Error('地域が見つかりません');return{lat:x.latitude,lon:x.longitude,name:[x.admin1,x.name].filter(Boolean).join(' ')}}
+async function weatherForDate(lat,lon,day){const today=iso(new Date()),diff=(new Date(day+'T00:00:00')-new Date(today+'T00:00:00'))/86400000;let base;if(diff>=-5&&diff<=15)base='https://api.open-meteo.com/v1/forecast';else base='https://archive-api.open-meteo.com/v1/archive';const u=`${base}?latitude=${lat}&longitude=${lon}&start_date=${day}&end_date=${day}&daily=weather_code&timezone=Asia%2FTokyo`;const j=await fetch(u).then(r=>r.json());return weatherLabel(j.daily?.weather_code?.[0])}
+async function refreshHypothesisWeather(){const box=$('hypothesisWeather');if(!box||!date.value)return;const q=(localStorage.getItem(weatherLocationKey)||'東京都府中市').trim();box.textContent='天気を取得中…';try{const cacheKey=q+'|'+date.value;if(weatherCache.has(cacheKey)){box.textContent=weatherCache.get(cacheKey);return}const loc=await geocodeWeatherLocation(q),dt=new Date(date.value+'T00:00:00'),prev=new Date(dt);prev.setFullYear(prev.getFullYear()-1);const prevDay=iso(prev);const [now,last]=await Promise.all([weatherForDate(loc.lat,loc.lon,date.value),weatherForDate(loc.lat,loc.lon,prevDay)]);const text=`今日の天気：${now}　前年同日：${last}`;weatherCache.set(cacheKey,text);box.textContent=text}catch(e){box.textContent='天気を取得できませんでした'}}
+function setupWeatherLocation(){const e=$('weatherLocation'),b=$('saveWeatherLocation');if(!e||!b)return;e.value=localStorage.getItem(weatherLocationKey)||'東京都府中市';b.onclick=()=>{const v=e.value.trim();if(!v)return;localStorage.setItem(weatherLocationKey,v);weatherCache.clear();$('weatherLocationStatus').textContent=`${v} を保存しました。`;refreshHypothesisWeather()}}
+'''
+          if 'function weatherLabel(' not in s:
+              s=s.replace(helper_marker,weather_js+helper_marker,1)
+
+          # Add compact weather line inside 本日の仮説.
+          old="else h+=`<textarea id=\"${id}\"></textarea>`;"
+          new="else if(id==='dailyHypothesis')h+=`<div id=\"hypothesisWeather\" class=\"saved\" style=\"font-weight:700\">天気を取得中…</div><textarea id=\"${id}\"></textarea>`;else h+=`<textarea id=\"${id}\"></textarea>`;"
+          if "id=\"hypothesisWeather\"" not in s:
+              s=s.replace(old,new,1)
+
+          # Refresh weather whenever the edit UI is rebuilt.
+          needle='$("editCopyBtn").onclick=copy}'
+          if 'refreshHypothesisWeather();$("editCopyBtn")' not in s:
+              s=s.replace(needle,'refreshHypothesisWeather();$("editCopyBtn").onclick=copy}',1)
+
+          # Existing users: force 本日の仮説 to the top of report-item order once.
+          load_marker='function header(){'
+          migrate_js=r'''function ensureHypothesisFirst(){const k=`${PREFIX}hypothesisFirstV1`;if(localStorage.getItem(k))return;let a=combinedOrder().filter(x=>x!=='s:dailyHypothesis');a.unshift('s:dailyHypothesis');saveCombined(a);localStorage.setItem(k,'1')}
+'''
+          if 'function ensureHypothesisFirst()' not in s:
+              s=s.replace(load_marker,migrate_js+load_marker,1)
+
+          # Init location setting and migration before first load.
+          init='date.value=iso(new Date());load();mode(\'edit\');'
+          if init in s:
+              s=s.replace(init,"date.value=iso(new Date());ensureHypothesisFirst();setupWeatherLocation();load();mode('edit');",1)
+
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Put productivity first and add weather to hypothesis'
+          git push
