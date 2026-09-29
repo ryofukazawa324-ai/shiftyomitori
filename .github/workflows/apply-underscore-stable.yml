@@ -1,0 +1,48 @@
+name: Apply stable underscore carryover
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-underscore-stable.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch index
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          a = s.index('function underscoreHeads(')
+          b = s.index('function cfg()', a)
+          replacement = r'''function underscoreHeads(v){return String(v||'').split(/\r?\n/).map(x=>x.trim()).filter(x=>x.startsWith('_')&&x.length>1)}
+function previousDayKey(){if(!date.value)return'';const dt=new Date(date.value+'T00:00:00');dt.setDate(dt.getDate()-1);return iso(dt)}
+function blank(){return{staffMembers:'',dailyTodo:[DEFAULTS.dailyTodo,...weekdays()].join('\n'),earlyTodo:DEFAULTS.earlyTodo,lateTodo:DEFAULTS.lateTodo,beforeGoal:'',dailyHypothesis:'',virtualOrder:'',salesModels:'',bbSurvey:'',oneWord:'',improve:'',stumble:'',impression:''}}
+function data(){let d=blank(),saved={};try{saved=JSON.parse(localStorage.getItem(dayKey())||'{}');d={...d,...saved}}catch{}const prev=previousDayKey();if(prev){let pd={};try{pd=JSON.parse(localStorage.getItem(`${PREFIX}day:${prev}`)||'{}')}catch{}for(const id of legacy){if(id==='staffMembers'||id==='virtualOrder'||id==='salesModels'||id==='bbSurvey')continue;if(String(saved[id]??'').trim())continue;const hs=underscoreHeads(pd[id]);if(hs.length)d[id]=hs.join('\n')}}return d}
+'''
+          s = s[:a] + replacement + s[b:]
+          old_start = s.index('function customDefs()')
+          old_end = s.index('function combinedOrder()', old_start)
+          custom = r'''function customDefs(){let a=[];try{a=JSON.parse(localStorage.getItem(customDefsKey)||'[]')}catch{};if(!a.length){let old=[];try{old=JSON.parse(localStorage.getItem(legacyCustomKey())||'[]')}catch{};if(!old.length){for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(PREFIX+'day:')&&k.endsWith(':customSections')){try{old=JSON.parse(localStorage.getItem(k)||'[]')}catch{};if(old.length)break}}}if(old.length)a=old.map(x=>({title:String(x.title||'新しい項目').replace(/^◆+/,''),hidden:!!x.hidden}))}let changed=false;a=a.map((x,i)=>{if(!x.id){changed=true;return{...x,id:`custom_${Date.now()}_${i}`}}return x});if(changed||!localStorage.getItem(customDefsKey))localStorage.setItem(customDefsKey,JSON.stringify(a));return a}
+function rawCustomMap(day){let raw=[];try{raw=JSON.parse(localStorage.getItem(customBodyKey(day))||'[]')}catch{}const defs=customDefs(),m={};if(Array.isArray(raw)){defs.forEach((d,i)=>m[d.id]=raw[i]||'')}else if(raw&&typeof raw==='object')Object.assign(m,raw);return m}
+function customBodies(day=date.value){const defs=customDefs(),m=rawCustomMap(day);if(day===date.value){const prev=previousDayKey();if(prev){const pm=rawCustomMap(prev);let changed=false;for(const d of defs){if(String(m[d.id]||'').trim())continue;const hs=underscoreHeads(pm[d.id]);if(hs.length){m[d.id]=hs.join('\n');changed=true}}if(changed)localStorage.setItem(customBodyKey(day),JSON.stringify(m))}}return defs.map(d=>m[d.id]||'')}
+function customs(day=date.value){const d=customDefs(),b=customBodies(day);return d.map((x,i)=>({...x,body:b[i]||''}))}
+function saveCustomDefs(a){const old=customDefs();localStorage.setItem(customDefsKey,JSON.stringify(a.map((x,i)=>({id:x.id||old[i]?.id||`custom_${Date.now()}_${i}`,title:String(x.title||'新しい項目').replace(/^◆+/,''),hidden:!!x.hidden}))))}
+function saveCustomBody(i,v){const defs=customDefs(),m=rawCustomMap(date.value),d=defs[i];if(!d)return;m[d.id]=v;localStorage.setItem(customBodyKey(),JSON.stringify(m))}
+'''
+          s = s[:old_start] + custom + s[old_end:]
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Fix underscore carryover by stable section id'
+          git push
