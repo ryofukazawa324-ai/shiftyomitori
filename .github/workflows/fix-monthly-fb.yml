@@ -1,4 +1,4 @@
-name: Fix weather autofill
+name: Fix daily sales target
 on:
   push:
     paths:
@@ -10,51 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Fix weather autofill
+      - name: Use 8.5 hour daily average
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-          start=s.index('async function refreshHypothesisWeather()')
-          end=s.index('function productivityState()', start)
-          replacement=r'''async function refreshHypothesisWeather(){
-            if(!date.value)return;
-            const savedLoc=(localStorage.getItem(weatherLocationKey)||'東京都府中市').trim();
-            try{
-              const candidates=[savedLoc,savedLoc.replace(/^東京都/,''),savedLoc.replace(/[都道府県]/g,'').replace(/[市区町村]$/,'')].filter((v,i,a)=>v&&a.indexOf(v)===i);
-              let q=null;
-              for(const name of candidates){
-                const g=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=5&language=ja&format=json&countryCode=JP`);
-                const gj=await g.json();
-                q=(gj.results||[]).find(x=>x.admin1==='東京都'||x.admin1==='Tokyo')||(gj.results||[])[0];
-                if(q)break;
-              }
-              if(!q)throw new Error('location not found');
-              const z=new Date(date.value+'T00:00:00');
-              const prev=`${z.getFullYear()-1}-${String(z.getMonth()+1).padStart(2,'0')}-${String(z.getDate()).padStart(2,'0')}`;
-              const today=iso(new Date());
-              const currentBase=date.value<=today?'https://archive-api.open-meteo.com/v1/archive':'https://api.open-meteo.com/v1/forecast';
-              const f=await fetch(`${currentBase}?latitude=${q.latitude}&longitude=${q.longitude}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${date.value}&end_date=${date.value}`);
-              const fj=await f.json();
-              const h=await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${q.latitude}&longitude=${q.longitude}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${prev}&end_date=${prev}`);
-              const hj=await h.json();
-              const nowCode=fj.daily?.weather_code?.[0],prevCode=hj.daily?.weather_code?.[0];
-              if(nowCode==null||prevCode==null)throw new Error('weather unavailable');
-              const line=`今日天気：${weatherLabel(nowCode)}　前年天気：${weatherLabel(prevCode)}`;
-              let x={};try{x=JSON.parse(localStorage.getItem(dayKey())||'{}')}catch{}
-              const old=String(x.dailyHypothesis||'');
-              x.dailyHypothesis=/^今日天気：.*$/m.test(old)?old.replace(/^今日天気：.*$/m,line):[line,old].filter(Boolean).join('\n');
-              localStorage.setItem(dayKey(),JSON.stringify(x));
-              const box=$('dailyHypothesis');if(box)box.value=x.dailyHypothesis;
-              render();
-              if($('weatherStatus'))$('weatherStatus').textContent=`${savedLoc} の天気を取得しました。`;
-            }catch(e){
-              if($('weatherStatus'))$('weatherStatus').textContent='天気を取得できませんでした。地域名を確認してください。';
-            }
-          }
-'''
-          s=s[:start]+replacement+s[end:]
+          old="let h=8;const m=String(selectedShift||'').match(/(\\d+(?:\\.\\d+)?)\\s*(?:h|時間)/i);if(m)h=+m[1];return{x,goal,remainH,remain,need,today:need*h}"
+          new="const remainingDays=remainH/8.5;const today=remainingDays?remain/remainingDays:0;return{x,goal,remainH,remain,need,remainingDays,today}"
+          if old not in s:
+              raise SystemExit('target calculation not found')
+          s=s.replace(old,new,1)
+          s=s.replace("本日の販買目安：${q.today.toFixed(1)}万円","残り勤務日数目安：${q.remainingDays.toFixed(1)}日（1日8.5時間換算）\\n本日の販買目安：${q.today.toFixed(1)}万円",1)
           p.write_text(s,encoding='utf-8')
           PY
       - name: Commit change
@@ -62,6 +29,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Fix weather autofill in daily hypothesis'
+          git commit -m 'Calculate daily sales target with 8.5 hour average'
           git push
-# trigger 2
