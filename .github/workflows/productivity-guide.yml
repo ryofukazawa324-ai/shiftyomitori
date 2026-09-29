@@ -1,0 +1,35 @@
+name: Apply productivity guide
+on:
+  push:
+    paths:
+      - '.github/workflows/productivity-guide.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text()
+          anchor='  <button id="monthlyFbBtn" class="monthlyFbBtn" type="button">FB相談</button>'
+          if 'id="productivityGuide"' not in s:
+            ui='''  <button id="toggleProductivityGuide" class="fileButton" type="button" style="width:100%;border:0;margin:12px 0 6px">生産性・販買目標を表示</button>
+  <div class="sectionCard" id="productivityGuide" hidden><h3>生産性・販買目標</h3><div class="small">日々の指針用。シフト表のメイン担当者行の右側から月間勤務時間を自動取得します。</div><div class="twoCol" style="margin-top:10px"><div><label>目標生産性（万円/時間）</label><input id="targetProductivity" type="number" step="0.1" placeholder="例：4"></div><div><label>現状の生産性（万円/時間）</label><input id="currentProductivity" type="number" step="0.1" placeholder="例：2.5"></div><div><label>勤務済み時間</label><input id="workedHours" type="number" step="0.1" placeholder="例：150"></div><div><label>月間勤務予定</label><input id="scheduledHours" type="text" readonly></div></div><div id="productivityResult" class="viewBox" style="margin-top:10px"></div><label class="showLabel" style="display:block;margin-top:10px"><input id="includeProductivityInReport" type="checkbox"> 日報にも記載する</label></div>
+'''
+            assert anchor in s
+            s=s.replace(anchor,ui+anchor,1)
+          marker="$('exportBackupBtn').onclick=exportBackup;"
+          if 'function productivitySettings()' not in s:
+            js=r'''function productivitySettings(){try{return{target:'',current:'',worked:'',include:false,visible:false,...JSON.parse(localStorage.getItem(PREFIX+'productivitySettings')||'{}')}}catch{return{target:'',current:'',worked:'',include:false,visible:false}}}function productivitySave(v){localStorage.setItem(PREFIX+'productivitySettings',JSON.stringify(v))}function productivityHours(){if(!rows)return null;let row=null;for(let r=headerRowIndex+1;r<rows.length;r++)if(staffMatch(clean((rows[r]||[])[nameColIndex]))){row=rows[r];break}if(!row)return null;for(let c=row.length-1;c>=0;c--){const v=row[c],n=typeof v==='number'?v:+String(v??'').replace(/[^0-9.]/g,'');if(isFinite(n)&&n>=20&&n<=300)return Math.round(n*10)/10}return null}function productivityDays(){if(!rows)return 0;return dateColumns.filter(x=>{const v=selfShiftAt(x.iso);return v!==null&&!isOffShift(v)}).length}function productivityText(){const st=productivitySettings(),t=+st.target||0,c=+st.current||0,w=+st.worked||0,total=productivityHours(),days=productivityDays();if(!t)return'目標生産性を入力すると販買目標を計算します。';if(!total)return'シフト表から月間勤務時間を取得できませんでした。';const goal=t*total,a=[`月間勤務予定：${total}時間`,`月間販買目標：${goal.toFixed(1)}万円`];if(days)a.push(`1日平均の販買目標：${(goal/days).toFixed(1)}万円（出勤${days}日）`);if(c&&w){const need=Math.max(0,goal-c*w),rh=Math.max(0,total-w);let rd=0;dateColumns.forEach(x=>{if(x.iso>=date.value){const v=selfShiftAt(x.iso);if(v!==null&&!isOffShift(v))rd++}});a.push(`目標まで残り：${need.toFixed(1)}万円`,`残り時間で必要な生産性：${rh?(need/rh).toFixed(2):'0'}万円/時間`);if(rd)a.push(`今後1日あたり必要：${(need/rd).toFixed(1)}万円（残り出勤${rd}日）`)}return a.join('\n')}function refreshProductivity(){const g=$('productivityGuide');if(!g)return;const st=productivitySettings(),h=productivityHours();g.hidden=!st.visible;$('toggleProductivityGuide').textContent=st.visible?'生産性・販買目標を非表示':'生産性・販買目標を表示';$('targetProductivity').value=st.target;$('currentProductivity').value=st.current;$('workedHours').value=st.worked;$('scheduledHours').value=h==null?'':h+'時間';$('includeProductivityInReport').checked=!!st.include;$('productivityResult').textContent=productivityText()}function saveProductivity(){const st=productivitySettings();st.target=$('targetProductivity').value;st.current=$('currentProductivity').value;st.worked=$('workedHours').value;st.include=$('includeProductivityInReport').checked;productivitySave(st);refreshProductivity()}$('toggleProductivityGuide').onclick=()=>{const st=productivitySettings();st.visible=!st.visible;productivitySave(st);refreshProductivity()};['targetProductivity','currentProductivity','workedHours'].forEach(id=>$(id).oninput=saveProductivity);$('includeProductivityInReport').onchange=saveProductivity;refreshProductivity();'''
+            assert marker in s
+            s=s.replace(marker,js+'\n'+marker,1)
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m 'Add productivity guide and visibility toggle'
+          git push
