@@ -1,4 +1,4 @@
-name: Fix underscore carryover
+name: Add daily guide and weather
 on:
   push:
     paths:
@@ -10,29 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Carry headings into blank fields on every date
+      - name: Update dashboard
         run: |
           python - <<'PY'
           from pathlib import Path
-          p=Path('index.html')
-          s=p.read_text()
-
-          start=s.index('function underscoreHeads(')
-          end=s.index('function cfg()',start)
-          if start<0 or end<0: raise SystemExit('carryover block missing')
-          new=r'''function underscoreHeads(v){return String(v||'').split(/\r?\n/).map(x=>x.trim()).filter(x=>x.startsWith('_')&&x.length>1)}
-function previousMonthHeads(){if(!date.value)return{};const dt=new Date(date.value+'T00:00:00'),pm=new Date(dt.getFullYear(),dt.getMonth()-1,1),pfx=`${pm.getFullYear()}-${String(pm.getMonth()+1).padStart(2,'0')}`,out={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(!k||!k.startsWith(`${PREFIX}day:${pfx}-`)||k.endsWith(':customBodies')||k.endsWith(':customSections')||k.endsWith(':layoutOrder'))continue;let d={};try{d=JSON.parse(localStorage.getItem(k)||'{}')}catch{};for(const id of legacy){if(id==='staffMembers'||id==='virtualOrder'||id==='salesModels'||id==='bbSurvey')continue;const hs=underscoreHeads(d[id]);if(hs.length)(out[id]??=[]).push(...hs)}const day=k.slice(`${PREFIX}day:`.length);try{const cb=JSON.parse(localStorage.getItem(customBodyKey(day))||'[]');cb.forEach((v,n)=>{const hs=underscoreHeads(v);if(hs.length)(out[`custom:${n}`]??=[]).push(...hs)})}catch{}try{const old=JSON.parse(localStorage.getItem(legacyCustomKey(day))||'[]');old.forEach((x,n)=>{const hs=underscoreHeads(x.body);if(hs.length)(out[`custom:${n}`]??=[]).push(...hs)})}catch{}}for(const key of Object.keys(out))out[key]=[...new Set(out[key])];return out}
-function blank(){return{staffMembers:'',dailyTodo:[DEFAULTS.dailyTodo,...weekdays()].join('\n'),earlyTodo:DEFAULTS.earlyTodo,lateTodo:DEFAULTS.lateTodo,beforeGoal:'',virtualOrder:'',salesModels:'',bbSurvey:'',oneWord:'',improve:'',stumble:'',impression:''}}
-function data(){const b=blank();let saved={};try{saved=JSON.parse(localStorage.getItem(dayKey())||'{}')}catch{};const d={...b,...saved},h=previousMonthHeads();for(const [id,a] of Object.entries(h)){if(id.startsWith('custom:')||!(id in d)||!a.length)continue;if(!String(saved[id]??'').trim()&&!String(b[id]??'').trim())d[id]=a.join('\n')}return d}
-'''
-          s=s[:start]+new+s[end:]
-
-          a=s.index('function customBodies(')
-          b=s.index('function customs(',a)
-          if a<0 or b<0: raise SystemExit('customBodies block missing')
-          new2=r'''function customBodies(day=date.value){let a=[];try{a=JSON.parse(localStorage.getItem(customBodyKey(day))||'[]')}catch{};if(!a.length){try{const old=JSON.parse(localStorage.getItem(legacyCustomKey(day))||'[]');if(old.length)a=old.map(x=>x.body||'')}catch{}}if(day===date.value){const h=previousMonthHeads();for(const [k,v] of Object.entries(h))if(k.startsWith('custom:')&&v.length){const n=+k.slice(7);while(a.length<=n)a.push('');if(!String(a[n]||'').trim())a[n]=v.join('\n')}}return a}
-'''
-          s=s[:a]+new2+s[b:]
+          p=Path('index.html'); s=p.read_text()
+          a=s.index('  <div class="sectionCard" id="productivityGuide">'); b=s.index('  <button id="monthlyFbBtn"',a); prod=s[a:b]; s=s[:a]+s[b:]
+          s=s.replace('  <section id="editMode"></section>\n',prod+'  <section id="editMode"></section>\n',1)
+          wh='''  <div class="sectionCard" id="weatherSettings"><h3>天気取得地域</h3><div class="small">本日の仮説に表示する天気の地域です。一度設定すると保存されます。</div><div style="margin-top:10px"><input id="weatherLocation" type="text" placeholder="例：東京都府中市"></div><button id="saveWeatherLocation" class="copyBtn" type="button">地域を保存</button><div id="weatherStatus" class="status"></div></div>\n'''
+          if 'id="weatherSettings"' not in s:s=s.replace('  <button id="deleteReportDataBtn" class="danger">',wh+'  <button id="deleteReportDataBtn" class="danger">',1)
+          js="""const weatherLocationKey=`${PREFIX}weatherLocation`;\nfunction weatherLabel(c){if(c===0||c===1)return '晴れ';if([2,3,45,48].includes(c))return '曇り';if((c>=51&&c<=82)||(c>=95&&c<=99))return '雨';return '不明'}\nfunction setupWeather(){const e=$('weatherLocation'),b=$('saveWeatherLocation');if(!e||!b)return;e.value=localStorage.getItem(weatherLocationKey)||'東京都府中市';b.onclick=()=>{const v=e.value.trim();if(!v)return;localStorage.setItem(weatherLocationKey,v);$('weatherStatus').textContent=`${v} を保存しました。`;refreshHypothesisWeather()}}\nasync function refreshHypothesisWeather(){if(!date.value)return;const loc=localStorage.getItem(weatherLocationKey)||'東京都府中市';try{const g=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(loc)}&count=1&language=ja&format=json`),gj=await g.json(),q=gj.results?.[0];if(!q)return;const z=new Date(date.value+'T00:00:00'),prev=`${z.getFullYear()-1}-${String(z.getMonth()+1).padStart(2,'0')}-${String(z.getDate()).padStart(2,'0')}`;const f=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${q.latitude}&longitude=${q.longitude}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${date.value}&end_date=${date.value}`),fj=await f.json();const h=await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${q.latitude}&longitude=${q.longitude}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${prev}&end_date=${prev}`),hj=await h.json();const line=`今日天気：${weatherLabel(fj.daily?.weather_code?.[0])}　前年天気：${weatherLabel(hj.daily?.weather_code?.[0])}`,x=data();x.dailyHypothesis=String(x.dailyHypothesis||'').match(/^今日天気：.*$/m)?String(x.dailyHypothesis).replace(/^今日天気：.*$/m,line):[line,x.dailyHypothesis].filter(Boolean).join('\\n');localStorage.setItem(dayKey(),JSON.stringify(x));build();render()}catch(e){}}\n"""
+          if 'weatherLocationKey' not in s:s=s.replace('function productivityState()',js+'function productivityState()',1)
+          s=s.replace("function load(){header();build();render();updateShift()}","function load(){header();build();render();updateShift();refreshHypothesisWeather()}")
+          s=s.replace("date.value=iso(new Date());load();mode('edit');", "date.value=iso(new Date());load();mode('edit');setupWeather();setupProductivity();")
           p.write_text(s)
           PY
       - name: Commit change
@@ -40,5 +30,5 @@ function data(){const b=blank();let saved={};try{saved=JSON.parse(localStorage.g
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Fix underscore carryover for blank fields on all dates'
+          git commit -m 'Place productivity first and add weather to hypothesis'
           git push
