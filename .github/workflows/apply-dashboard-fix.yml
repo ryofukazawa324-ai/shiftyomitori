@@ -1,0 +1,47 @@
+name: Apply dashboard fix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-dashboard-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch index
+        shell: bash
+        run: |
+          python3 -c "from pathlib import Path; p=Path('index.html'); s=p.read_text(); s=s.replace('[\"beforeGoal\",\"出勤前目標\",\"text\"],[\"sales\",\"販買実績\",\"sales\"]','[\"beforeGoal\",\"出勤前目標\",\"text\"],[\"dailyHypothesis\",\"本日の仮説\",\"text\"],[\"sales\",\"販買実績\",\"sales\"]',1); s=s.replace('\"lateTodo\",\"beforeGoal\",\"virtualOrder\"','\"lateTodo\",\"beforeGoal\",\"dailyHypothesis\",\"virtualOrder\"',1); s=s.replace(\"beforeGoal:'',virtualOrder\",\"beforeGoal:'',dailyHypothesis:'',virtualOrder\",1); p.write_text(s)"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          anchor='  <button id="monthlyFbBtn" class="monthlyFbBtn" type="button">FB相談</button>'
+          if 'id="productivityGuide"' not in s:
+              ui='''  <div class="sectionCard" id="productivityGuide"><div class="sectionHead"><h3>◆生産性・販買目標</h3><button id="toggleProductivityGuide" class="orderBtn" type="button">非表示</button></div><div id="productivityContent"><div class="twoCol"><div><label>目標生産性（万円/時間）</label><input id="targetProductivity" type="number" step="0.1" inputmode="decimal"></div><div><label>現状生産性（万円/時間）</label><input id="currentProductivity" type="number" step="0.1" inputmode="decimal"></div><div><label>勤務済み時間</label><input id="workedHours" type="number" step="0.1" inputmode="decimal"></div><div><label>月間勤務予定時間</label><input id="plannedHours" type="number" step="0.1" inputmode="decimal"></div></div><div id="productivityResult" class="saved" style="white-space:pre-wrap;margin-top:10px"></div><label class="showLabel"><input id="includeProductivityInReport" type="checkbox"> 日報にも記載する</label></div></div>\n'''
+              if anchor not in s: raise SystemExit('anchor missing')
+              s=s.replace(anchor,ui+anchor,1)
+          marker='function header(){'
+          if 'function productivityCalc()' not in s:
+              js='''const productivityKey=`${PREFIX}productivity`,productivityHiddenKey=`${PREFIX}productivityHidden`;\nfunction productivityState(){let x={target:4,current:'',worked:'',planned:'',include:false};try{x={...x,...JSON.parse(localStorage.getItem(productivityKey)||'{}')}}catch{}return x}\nfunction productivityCalc(){const x=productivityState(),t=+x.target||0,c=+x.current||0,w=+x.worked||0,p=+x.planned||0;if(!t||!p)return null;const goal=t*p,sold=c*w,remainH=Math.max(0,p-w),remain=Math.max(0,goal-sold),need=remainH?remain/remainH:0;let h=8;const m=String(selectedShift||'').match(/(\\d+(?:\\.\\d+)?)\\s*(?:h|時間)/i);if(m)h=+m[1];return{x,goal,remainH,remain,need,today:need*h}}\nfunction productivityText(){const q=productivityCalc();if(!q)return '目標生産性と勤務時間を入力すると計算します。';return `月間販買目標：${q.goal.toFixed(1)}万円\\n目標まで残り：${q.remain.toFixed(1)}万円\\n残り時間で必要な生産性：${q.need.toFixed(2)}万円/時間\\n本日の販買目安：${q.today.toFixed(1)}万円`}\nfunction refreshProductivity(){const x=productivityState();[['targetProductivity',x.target],['currentProductivity',x.current],['workedHours',x.worked],['plannedHours',x.planned]].forEach(([id,v])=>{const e=$(id);if(e&&document.activeElement!==e)e.value=v??''});if($('includeProductivityInReport'))$('includeProductivityInReport').checked=!!x.include;if($('productivityResult'))$('productivityResult').textContent=productivityText();const h=localStorage.getItem(productivityHiddenKey)==='1';if($('productivityContent'))$('productivityContent').hidden=h;if($('toggleProductivityGuide'))$('toggleProductivityGuide').textContent=h?'表示':'非表示'}\nfunction saveProductivity(){const x={target:+($('targetProductivity')?.value||0),current:+($('currentProductivity')?.value||0),worked:+($('workedHours')?.value||0),planned:+($('plannedHours')?.value||0),include:!!$('includeProductivityInReport')?.checked};localStorage.setItem(productivityKey,JSON.stringify(x));refreshProductivity()}\nfunction setupProductivity(){refreshProductivity();['targetProductivity','currentProductivity','workedHours','plannedHours'].forEach(id=>{if($(id))$(id).oninput=saveProductivity});if($('includeProductivityInReport'))$('includeProductivityInReport').onchange=saveProductivity;if($('toggleProductivityGuide'))$('toggleProductivityGuide').onclick=()=>{localStorage.setItem(productivityHiddenKey,localStorage.getItem(productivityHiddenKey)==='1'?'0':'1');refreshProductivity()}}\n'''
+              if marker not in s: raise SystemExit('header missing')
+              s=s.replace(marker,js+marker,1)
+          if 'setupProductivity();restoreSavedWorkbook();' not in s:
+              s=s.replace('restoreSavedWorkbook();','setupProductivity();restoreSavedWorkbook();',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit changes
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          if ! git diff --cached --quiet; then
+            git commit -m "Add productivity guide and daily hypothesis"
+            git push
+          fi
