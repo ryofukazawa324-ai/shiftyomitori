@@ -1,0 +1,52 @@
+name: Add productivity guide v2
+on:
+  push:
+    paths:
+      - '.github/workflows/productivity-guide-v2.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          # CSS
+          s=s.replace('    .danger { width:100%;', '    .productivityGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.metric{padding:10px;background:#f8fafc;border-radius:10px}.metric b{display:block;font-size:18px}.guideActions{display:flex;gap:8px;margin-top:10px}.guideActions button{flex:1}.danger { width:100%;')
+          # UI before FB button
+          marker='  <button id="monthlyFbBtn" class="monthlyFbBtn" type="button">FB相談</button>'
+          ui='''  <div id="productivityWrap" class="sectionCard"><div class="sectionHead"><h3>生産性・販買目標</h3><button id="toggleProductivityBtn" class="orderBtn" type="button">非表示</button></div><div id="productivityBody"><div class="twoCol"><div><label>目標生産性（万円/時間）</label><input id="targetProductivity" type="number" step="0.1" inputmode="decimal"></div><div><label>現状の生産性（万円/時間）</label><input id="currentProductivity" type="number" step="0.1" inputmode="decimal"></div><div><label>勤務済み時間</label><input id="workedHours" type="number" step="0.1" inputmode="decimal"></div><div><label>月間勤務予定時間</label><input id="plannedHours" type="number" step="0.1" inputmode="decimal"><div class="small">シフト表から取れない場合は手入力できます</div></div></div><div id="productivityMetrics" class="productivityGrid" style="margin-top:12px"></div><label class="showLabel" style="display:block;margin-top:12px"><input id="includeProductivityReport" type="checkbox"> 日報の表示・コピーにも記載する</label></div></div>\n'''
+          if marker not in s: raise SystemExit('FB marker missing')
+          s=s.replace(marker,ui+marker,1)
+          # JS keys after mainStaffKey declaration
+          key='mainStaffKey=`${PREFIX}mainStaff`;'
+          s=s.replace(key,key+'\nconst productivityKey=`${PREFIX}productivity`,productivityHiddenKey=`${PREFIX}productivityHidden`;',1)
+          # functions before header
+          marker='function header(){'
+          funcs=r'''function productivitySettings(){let x={target:4,current:'',worked:'',planned:'',include:false};try{x={...x,...JSON.parse(localStorage.getItem(productivityKey)||'{}')}}catch{}return x}
+function saveProductivitySettings(){const x={target:+($("targetProductivity")?.value||0),current:+($("currentProductivity")?.value||0),worked:+($("workedHours")?.value||0),planned:+($("plannedHours")?.value||0),include:!!$("includeProductivityReport")?.checked};localStorage.setItem(productivityKey,JSON.stringify(x));renderProductivity();render()}
+function productivityText(){const x=productivitySettings(),target=+x.target||0,current=+x.current||0,worked=+x.worked||0,planned=+x.planned||0;if(!target||!planned)return'';const targetSales=target*planned,currentSales=current*worked,remainH=Math.max(0,planned-worked),remainSales=Math.max(0,targetSales-currentSales),needP=remainH?remainSales/remainH:0;let todayH=0;const sh=String(selectedShift||'');const m=sh.match(/(\d+(?:\.\d+)?)\s*(?:h|時間)/i);if(m)todayH=+m[1];const today=needP*(todayH||8);return `目標生産性：${target.toFixed(1)}万円/時間\n月間販買目標：${targetSales.toFixed(1)}万円\n現状生産性：${current.toFixed(1)}万円/時間\n目標まで残り：${remainSales.toFixed(1)}万円\n残り時間で必要：${needP.toFixed(2)}万円/時間\n1日の販買目安：${today.toFixed(1)}万円`}
+function renderProductivity(){const x=productivitySettings(),body=$("productivityBody"),btn=$("toggleProductivityBtn");if(!body)return;const hidden=localStorage.getItem(productivityHiddenKey)==='1';body.hidden=hidden;if(btn)btn.textContent=hidden?'表示':'非表示';for(const [id,v] of [['targetProductivity',x.target],['currentProductivity',x.current],['workedHours',x.worked],['plannedHours',x.planned]]){const e=$(id);if(e&&document.activeElement!==e)e.value=v??''}if($("includeProductivityReport"))$("includeProductivityReport").checked=!!x.include;const t=productivityText().split('\n');$("productivityMetrics").innerHTML=t.map(z=>{const a=z.split('：');return `<div class="metric"><span class="small">${esc(a[0]||'')}</span><b>${esc(a.slice(1).join('：')||'-')}</b></div>`}).join('')||'<div class="small">目標生産性と勤務時間を入力すると計算します。</div>'}
+function setupProductivity(){renderProductivity();['targetProductivity','currentProductivity','workedHours','plannedHours','includeProductivityReport'].forEach(id=>{const e=$(id);if(e)e.oninput=saveProductivitySettings});if($("includeProductivityReport"))$("includeProductivityReport").onchange=saveProductivitySettings;if($("toggleProductivityBtn"))$("toggleProductivityBtn").onclick=()=>{localStorage.setItem(productivityHiddenKey,localStorage.getItem(productivityHiddenKey)==='1'?'0':'1');renderProductivity()}}
+'''
+          if marker not in s: raise SystemExit('header marker missing')
+          s=s.replace(marker,funcs+marker,1)
+          # Add report output in render, safely just before viewText assignment
+          needle='$("viewText").textContent=o.join(\'\\n\').trim()'
+          repl='const px=productivitySettings();if(px.include&&productivityText())o.push("","◆生産性・販買目標",productivityText());'+needle
+          if needle not in s: raise SystemExit('render output marker missing')
+          s=s.replace(needle,repl,1)
+          # setup at init before restore workbook
+          marker='restoreSavedWorkbook();'
+          if marker not in s: raise SystemExit('init marker missing')
+          s=s.replace(marker,'setupProductivity();'+marker,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m 'Add productivity guide with visibility toggle'
+          git push
