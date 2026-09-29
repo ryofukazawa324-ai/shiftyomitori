@@ -1,0 +1,53 @@
+name: Apply previous-day underscore carryover
+on:
+  push:
+    paths:
+      - '.github/workflows/previous-day-underscore.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          start=s.index('function underscoreHeads(')
+          end=s.index('function sectionCfg(', start)
+          new=r'''function underscoreHeads(v){return String(v||'').split(/\r?\n/).map(x=>x.trim()).filter(x=>x.startsWith('_')&&x.length>1)}
+function previousDayHeads(){
+  if(!date.value)return{};
+  const dt=new Date(date.value+'T00:00:00');dt.setDate(dt.getDate()-1);const prev=iso(dt),out={};
+  let d={};try{d=JSON.parse(localStorage.getItem(`${PREFIX}day:${prev}`)||'{}')}catch{}
+  for(const id of legacy){if(id==='staffMembers'||id==='virtualOrder'||id==='salesModels'||id==='bbSurvey')continue;const hs=underscoreHeads(d[id]);if(hs.length)out[id]=[...new Set(hs)]}
+  try{const cb=JSON.parse(localStorage.getItem(customBodyKey(prev))||'[]');cb.forEach((v,n)=>{const hs=underscoreHeads(v);if(hs.length)out[`custom:${n}`]=[...new Set(hs)]})}catch{}
+  return out
+}
+function applyPreviousDayHeads(d){
+  const h=previousDayHeads();let changed=false;
+  for(const [id,hs] of Object.entries(h)){
+    if(id.startsWith('custom:'))continue;
+    if(!String(d[id]||'').trim()&&hs.length){d[id]=hs.join('\n');changed=true}
+  }
+  return changed
+}
+function applyPreviousDayCustomHeads(bodies){
+  const h=previousDayHeads();let changed=false;
+  for(const [id,hs] of Object.entries(h))if(id.startsWith('custom:')){const n=+id.slice(7);if(!String(bodies[n]||'').trim()&&hs.length){bodies[n]=hs.join('\n');changed=true}}
+  return changed
+}
+'''
+          s=s[:start]+new+s[end:]
+          s=s.replace('previousMonthHeads()', 'previousDayHeads()')
+          s=s.replace('applyPreviousMonthHeads', 'applyPreviousDayHeads')
+          s=s.replace('applyPreviousMonthCustomHeads', 'applyPreviousDayCustomHeads')
+          p.write_text(s,encoding='utf-8')
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m 'Carry underscore items from previous day only'
+          git push
