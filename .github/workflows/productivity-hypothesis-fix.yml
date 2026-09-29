@@ -24,11 +24,9 @@ function blank(){return{staffMembers:'',dailyTodo:[DEFAULTS.dailyTodo,...weekday
 function data(){let d=blank();let saved={};try{saved=JSON.parse(localStorage.getItem(dayKey())||'{}');d={...d,...saved}}catch{}const h=previousDayHeads().standard;for(const [id,a] of Object.entries(h)){if(!(id in d)||!a.length)continue;if(!String(saved[id]??'').trim())d[id]=a.join('\n')}return d}
 '''
           s=s[:start]+new+s[end:]
-          # Replace custom section loading with stable-ID map while keeping legacy arrays compatible.
           old="function customBodies(day=date.value){let a=[];try{a=JSON.parse(localStorage.getItem(customBodyKey(day))||'[]')}catch{}if(!Array.isArray(a))a=[];if(day===date.value){const h=previousDayHeads();for(const [k,v] of Object.entries(h))if(k.startsWith('custom:')){const n=+k.slice(7);while(a.length<=n)a.push('');if(!String(a[n]||'').trim()&&v.length)a[n]=v.join('\\n')}}return a}"
           new2="function customBodies(day=date.value){const defs=customDefs(),map=customBodyMap(day);if(day===date.value){const h=previousDayHeads().custom;let changed=false;for(const d of defs){if(!String(map[d.id]||'').trim()&&h[d.id]?.length){map[d.id]=h[d.id].join('\\n');changed=true}}if(changed)saveCustomBodyMap(day,map)}return defs.map(d=>map[d.id]||'')}"
           if old in s:s=s.replace(old,new2,1)
-          # Saving custom bodies: convert current textarea array to stable id map.
           oldsave="localStorage.setItem(customBodyKey(),JSON.stringify(customBodiesNow()))"
           newsave="(()=>{const defs=customDefs(),vals=customBodiesNow(),map={};defs.forEach((d,i)=>map[d.id]=vals[i]||'');saveCustomBodyMap(date.value,map)})()"
           s=s.replace(oldsave,newsave)
@@ -39,3 +37,4 @@ function data(){let d=blank();let saved={};try{saved=JSON.parse(localStorage.get
           git add index.html
           git commit -m 'Keep custom underscore carryover on same section'
           git push
+# retry 2026-09-29
