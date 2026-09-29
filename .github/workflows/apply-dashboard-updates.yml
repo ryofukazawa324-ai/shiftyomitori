@@ -1,0 +1,86 @@
+name: Apply dashboard updates
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-dashboard-updates.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch dashboard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+
+          # 1. Productivity guide UI - insert once before FB button.
+          if 'id="productivityWrap"' not in s:
+              marker='  <button id="monthlyFbBtn" class="monthlyFbBtn" type="button">FB相談</button>'
+              ui='''  <div id="productivityWrap" class="sectionCard"><div class="sectionHead"><h3>生産性・販買目標</h3><button id="toggleProductivityBtn" class="orderBtn" type="button">非表示</button></div><div id="productivityBody"><div class="twoCol"><div><label>目標生産性（万円/時間）</label><input id="targetProductivity" type="number" step="0.1" inputmode="decimal"></div><div><label>現状生産性（万円/時間）</label><input id="currentProductivity" type="number" step="0.1" inputmode="decimal"></div><div><label>勤務済み時間</label><input id="workedHours" type="number" step="0.1" inputmode="decimal"></div><div><label>月間勤務予定時間</label><input id="plannedHours" type="number" step="0.1" inputmode="decimal"></div></div><div id="productivityMetrics" style="margin-top:12px;line-height:1.8"></div><label class="showLabel" style="display:block;margin-top:12px"><input id="includeProductivityReport" type="checkbox"> 日報本文にも記載する</label></div></div>\n'''
+              assert marker in s, 'FB button marker missing'
+              s=s.replace(marker,ui+marker,1)
+
+          # 2. Add Daily Hypothesis as a built-in item for everyone, including existing users.
+          if '["hypothesis","本日の仮説","text"]' not in s:
+              marker='["dailyTodo","本日のやること","text"],'
+              assert marker in s, 'defs marker missing'
+              s=s.replace(marker,marker+'["hypothesis","本日の仮説","text"],',1)
+              marker='"dailyTodo","earlyTodo"'
+              assert marker in s, 'legacy marker missing'
+              s=s.replace(marker,'"dailyTodo","hypothesis","earlyTodo"',1)
+
+          # 3. Keys.
+          if 'productivityKey=' not in s:
+              marker='mainStaffKey=`${PREFIX}mainStaff`;'
+              assert marker in s, 'mainStaff key marker missing'
+              s=s.replace(marker,marker+'const productivityKey=`${PREFIX}productivity`,productivityHiddenKey=`${PREFIX}productivityHidden`;',1)
+
+          # 4. Ensure blank data has hypothesis.
+          marker="dailyTodo:[DEFAULTS.dailyTodo,...weekdays()].join('\\n'),"
+          if marker in s and "hypothesis:''" not in s:
+              s=s.replace(marker,marker+"hypothesis:'',",1)
+
+          # 5. Productivity logic.
+          if 'function setupProductivity()' not in s:
+              marker='function header(){'
+              assert marker in s, 'header marker missing'
+              js=r'''function productivitySettings(){let x={target:4,current:'',worked:'',planned:'',include:false};try{x={...x,...JSON.parse(localStorage.getItem(productivityKey)||'{}')}}catch{}return x}
+function saveProductivitySettings(){const x={target:+($("targetProductivity")?.value||0),current:+($("currentProductivity")?.value||0),worked:+($("workedHours")?.value||0),planned:+($("plannedHours")?.value||0),include:!!$("includeProductivityReport")?.checked};localStorage.setItem(productivityKey,JSON.stringify(x));renderProductivity();if(typeof render==='function')render()}
+function productivityText(){const x=productivitySettings(),target=+x.target||0,current=+x.current||0,worked=+x.worked||0,planned=+x.planned||0;if(!target||!planned)return'';const goal=target*planned,now=current*worked,remainH=Math.max(0,planned-worked),remain=Math.max(0,goal-now),need=remainH?remain/remainH:0;return `目標生産性：${target.toFixed(1)}万円/時間\n月間販買目標：${goal.toFixed(1)}万円\n現状生産性：${current.toFixed(1)}万円/時間\n目標まで残り：${remain.toFixed(1)}万円\n残り時間で必要：${need.toFixed(2)}万円/時間\n8時間勤務の販買目安：${(need*8).toFixed(1)}万円`}
+function renderProductivity(){const body=$("productivityBody"),btn=$("toggleProductivityBtn");if(!body)return;const x=productivitySettings(),hidden=localStorage.getItem(productivityHiddenKey)==='1';body.hidden=hidden;if(btn)btn.textContent=hidden?'表示':'非表示';[['targetProductivity',x.target],['currentProductivity',x.current],['workedHours',x.worked],['plannedHours',x.planned]].forEach(([id,v])=>{const e=$(id);if(e&&document.activeElement!==e)e.value=v??''});if($("includeProductivityReport"))$("includeProductivityReport").checked=!!x.include;const t=productivityText();$("productivityMetrics").textContent=t||'数値を入力すると、目標までに必要な販買額を表示します。'}
+function setupProductivity(){renderProductivity();['targetProductivity','currentProductivity','workedHours','plannedHours'].forEach(id=>{const e=$(id);if(e)e.addEventListener('input',saveProductivitySettings)});const inc=$("includeProductivityReport");if(inc)inc.addEventListener('change',saveProductivitySettings);const b=$("toggleProductivityBtn");if(b)b.addEventListener('click',()=>{localStorage.setItem(productivityHiddenKey,localStorage.getItem(productivityHiddenKey)==='1'?'0':'1');renderProductivity()})}
+'''
+              s=s.replace(marker,js+marker,1)
+
+          # 6. Setup productivity on startup.
+          if 'setupProductivity();restoreSavedWorkbook();' not in s:
+              marker='restoreSavedWorkbook();'
+              assert marker in s, 'restore marker missing'
+              s=s.replace(marker,'setupProductivity();'+marker,1)
+
+          # 7. Previous-day underscore carryover only (replace old month-scanning function block).
+          start=s.find('function underscoreHeads(')
+          end=s.find('function sectionCfg(',start)
+          if start!=-1 and end!=-1:
+              block=s[start:end]
+              if 'previousMonthHeads' in block:
+                  new=r'''function underscoreHeads(v){return String(v||'').split(/\r?\n/).map(x=>x.trim()).filter(x=>x.startsWith('_')&&x.length>1)}
+function previousDayHeads(){if(!date.value)return{};const dt=new Date(date.value+'T00:00:00');dt.setDate(dt.getDate()-1);const prev=iso(dt),out={};let d={};try{d=JSON.parse(localStorage.getItem(`${PREFIX}day:${prev}`)||'{}')}catch{};for(const id of legacy){if(id==='staffMembers'||id==='virtualOrder'||id==='salesModels'||id==='bbSurvey')continue;const hs=underscoreHeads(d[id]);if(hs.length)out[id]=[...new Set(hs)]}try{const cb=JSON.parse(localStorage.getItem(customBodyKey(prev))||'[]');cb.forEach((v,n)=>{const hs=underscoreHeads(v);if(hs.length)out[`custom:${n}`]=[...new Set(hs)]})}catch{}return out}
+'''
+                  s=s[:start]+new+s[end:]
+                  s=s.replace('previousMonthHeads()','previousDayHeads()')
+
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m 'Add productivity guide and daily hypothesis'
+          git push
