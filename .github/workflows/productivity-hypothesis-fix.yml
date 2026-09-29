@@ -1,0 +1,48 @@
+name: Add productivity and daily hypothesis
+on:
+  push:
+    paths: ['.github/workflows/productivity-hypothesis-fix.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          # Built-in daily hypothesis field
+          old='["beforeGoal","出勤前目標","text"],["sales","販買実績","sales"]'
+          new='["beforeGoal","出勤前目標","text"],["dailyHypothesis","本日の仮説","text"],["sales","販買実績","sales"]'
+          if old in s: s=s.replace(old,new,1)
+          old='"lateTodo","beforeGoal","virtualOrder"'
+          new='"lateTodo","beforeGoal","dailyHypothesis","virtualOrder"'
+          if old in s: s=s.replace(old,new,1)
+          old="lateTodo:DEFAULTS.lateTodo,beforeGoal:'',virtualOrder:''"
+          new="lateTodo:DEFAULTS.lateTodo,beforeGoal:'',dailyHypothesis:'',virtualOrder:''"
+          if old in s: s=s.replace(old,new,1)
+
+          # Productivity guide UI
+          anchor='  <button id="monthlyFbBtn" class="monthlyFbBtn" type="button">FB相談</button>'
+          if 'id="prodGuideCard"' not in s:
+            assert anchor in s
+            ui='''  <button id="prodToggle" class="fileButton" type="button" style="width:100%;border:0;margin:12px 0 6px">生産性・販買目標を表示</button>
+  <div id="prodGuideCard" class="sectionCard" hidden><h3>生産性・販買目標</h3><div class="small">日々の指針。入力値は保存されます。</div><div class="twoCol" style="margin-top:10px"><div><label>目標生産性（万円/時間）</label><input id="prodTarget" type="number" step="0.1"></div><div><label>現状生産性（万円/時間）</label><input id="prodCurrent" type="number" step="0.1"></div><div><label>勤務済み時間</label><input id="prodWorked" type="number" step="0.1"></div><div><label>月間勤務予定時間</label><input id="prodPlanned" type="number" step="0.1" placeholder="シフト表右端の時間"></div></div><div id="prodResult" class="viewBox" style="margin-top:10px"></div><label class="showLabel" style="display:block;margin-top:10px"><input id="prodInclude" type="checkbox"> 日報にも記載する</label></div>
+'''
+            s=s.replace(anchor,ui+anchor,1)
+
+          # Independent guide script; robust even if app internals change
+          if 'id="prodGuideScript"' not in s:
+            script=r'''<script id="prodGuideScript">
+(()=>{const K='workReport:productivityGuide';const $p=id=>document.getElementById(id);function get(){try{return{target:'',current:'',worked:'',planned:'',include:false,visible:false,...JSON.parse(localStorage.getItem(K)||'{}')}}catch{return{target:'',current:'',worked:'',planned:'',include:false,visible:false}}}function calc(){const x=get(),t=+x.target||0,c=+x.current||0,w=+x.worked||0,p=+x.planned||0,a=[];if(t&&p){const goal=t*p,done=c*w,remain=Math.max(0,goal-done),rh=Math.max(0,p-w);a.push(`月間販買目標：${goal.toFixed(1)}万円`,`目標まで残り：${remain.toFixed(1)}万円`,`残り時間で必要：${rh?(remain/rh).toFixed(2):'0'}万円/時間`);const dailyHours=8; a.push(`1日販買目安（8時間換算）：${(rh?remain/rh*dailyHours:0).toFixed(1)}万円`)}else a.push('目標生産性と月間勤務予定時間を入力すると計算します。');$p('prodResult').textContent=a.join('\n')}function draw(){const x=get();$p('prodGuideCard').hidden=!x.visible;$p('prodToggle').textContent=x.visible?'生産性・販買目標を非表示':'生産性・販買目標を表示';[['prodTarget','target'],['prodCurrent','current'],['prodWorked','worked'],['prodPlanned','planned']].forEach(([id,k])=>{if(document.activeElement!==$p(id))$p(id).value=x[k]});$p('prodInclude').checked=!!x.include;calc()}function save(){const x=get();x.target=$p('prodTarget').value;x.current=$p('prodCurrent').value;x.worked=$p('prodWorked').value;x.planned=$p('prodPlanned').value;x.include=$p('prodInclude').checked;localStorage.setItem(K,JSON.stringify(x));calc()}document.addEventListener('DOMContentLoaded',()=>{if(!$p('prodToggle'))return;$p('prodToggle').onclick=()=>{const x=get();x.visible=!x.visible;localStorage.setItem(K,JSON.stringify(x));draw()};['prodTarget','prodCurrent','prodWorked','prodPlanned'].forEach(id=>$p(id).addEventListener('input',save));$p('prodInclude').addEventListener('change',save);draw()})})();
+</script>'''
+            s=s.replace('</body>',script+'\n</body>',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git commit -m 'Add productivity guide and daily hypothesis field'
+          git push
