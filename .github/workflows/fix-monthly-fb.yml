@@ -1,4 +1,4 @@
-name: Add daily guide and weather
+name: Add worked hour quick buttons
 on:
   push:
     paths:
@@ -15,14 +15,15 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html'); s=p.read_text()
-          a=s.index('  <div class="sectionCard" id="productivityGuide">'); b=s.index('  <button id="monthlyFbBtn"',a); prod=s[a:b]; s=s[:a]+s[b:]
-          s=s.replace('  <section id="editMode"></section>\n',prod+'  <section id="editMode"></section>\n',1)
-          wh='''  <div class="sectionCard" id="weatherSettings"><h3>天気取得地域</h3><div class="small">本日の仮説に表示する天気の地域です。一度設定すると保存されます。</div><div style="margin-top:10px"><input id="weatherLocation" type="text" placeholder="例：東京都府中市"></div><button id="saveWeatherLocation" class="copyBtn" type="button">地域を保存</button><div id="weatherStatus" class="status"></div></div>\n'''
-          if 'id="weatherSettings"' not in s:s=s.replace('  <button id="deleteReportDataBtn" class="danger">',wh+'  <button id="deleteReportDataBtn" class="danger">',1)
-          js="""const weatherLocationKey=`${PREFIX}weatherLocation`;\nfunction weatherLabel(c){if(c===0||c===1)return '晴れ';if([2,3,45,48].includes(c))return '曇り';if((c>=51&&c<=82)||(c>=95&&c<=99))return '雨';return '不明'}\nfunction setupWeather(){const e=$('weatherLocation'),b=$('saveWeatherLocation');if(!e||!b)return;e.value=localStorage.getItem(weatherLocationKey)||'東京都府中市';b.onclick=()=>{const v=e.value.trim();if(!v)return;localStorage.setItem(weatherLocationKey,v);$('weatherStatus').textContent=`${v} を保存しました。`;refreshHypothesisWeather()}}\nasync function refreshHypothesisWeather(){if(!date.value)return;const loc=localStorage.getItem(weatherLocationKey)||'東京都府中市';try{const g=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(loc)}&count=1&language=ja&format=json`),gj=await g.json(),q=gj.results?.[0];if(!q)return;const z=new Date(date.value+'T00:00:00'),prev=`${z.getFullYear()-1}-${String(z.getMonth()+1).padStart(2,'0')}-${String(z.getDate()).padStart(2,'0')}`;const f=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${q.latitude}&longitude=${q.longitude}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${date.value}&end_date=${date.value}`),fj=await f.json();const h=await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${q.latitude}&longitude=${q.longitude}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${prev}&end_date=${prev}`),hj=await h.json();const line=`今日天気：${weatherLabel(fj.daily?.weather_code?.[0])}　前年天気：${weatherLabel(hj.daily?.weather_code?.[0])}`,x=data();x.dailyHypothesis=String(x.dailyHypothesis||'').match(/^今日天気：.*$/m)?String(x.dailyHypothesis).replace(/^今日天気：.*$/m,line):[line,x.dailyHypothesis].filter(Boolean).join('\\n');localStorage.setItem(dayKey(),JSON.stringify(x));build();render()}catch(e){}}\n"""
-          if 'weatherLocationKey' not in s:s=s.replace('function productivityState()',js+'function productivityState()',1)
-          s=s.replace("function load(){header();build();render();updateShift()}","function load(){header();build();render();updateShift();refreshHypothesisWeather()}")
-          s=s.replace("date.value=iso(new Date());load();mode('edit');", "date.value=iso(new Date());load();mode('edit');setupWeather();setupProductivity();")
+          old='<div><label>勤務済み時間</label><input id="workedHours" type="number" step="0.1" inputmode="decimal"></div>'
+          new='''<div><label>勤務済み時間</label><input id="workedHours" type="number" step="0.1" inputmode="decimal"><div id="workedHourQuick" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:7px"><button class="orderBtn workedHourAdd" type="button" data-hours="7">＋7</button><button class="orderBtn workedHourAdd" type="button" data-hours="8">＋8</button><button class="orderBtn workedHourAdd" type="button" data-hours="9">＋9</button><button class="orderBtn workedHourAdd" type="button" data-hours="10">＋10</button></div></div>'''
+          if 'id="workedHourQuick"' not in s:
+              if old not in s: raise SystemExit('workedHours field not found')
+              s=s.replace(old,new,1)
+          oldfn="function setupProductivity(){refreshProductivity();['targetProductivity','currentProductivity','workedHours','plannedHours'].forEach(id=>{if($(id))$(id).oninput=saveProductivity});if($('includeProductivityInReport'))$('includeProductivityInReport').onchange=saveProductivity;if($('toggleProductivityGuide'))$('toggleProductivityGuide').onclick=()=>{localStorage.setItem(productivityHiddenKey,localStorage.getItem(productivityHiddenKey)==='1'?'0':'1');refreshProductivity()}}"
+          newfn="function setupProductivity(){refreshProductivity();['targetProductivity','currentProductivity','workedHours','plannedHours'].forEach(id=>{if($(id))$(id).oninput=saveProductivity});document.querySelectorAll('.workedHourAdd').forEach(b=>b.onclick=()=>{const e=$('workedHours');e.value=(+(e.value||0)+(+b.dataset.hours||0));saveProductivity()});if($('includeProductivityInReport'))$('includeProductivityInReport').onchange=saveProductivity;if($('toggleProductivityGuide'))$('toggleProductivityGuide').onclick=()=>{localStorage.setItem(productivityHiddenKey,localStorage.getItem(productivityHiddenKey)==='1'?'0':'1');refreshProductivity()}}"
+          if oldfn not in s: raise SystemExit('setupProductivity not found')
+          s=s.replace(oldfn,newfn,1)
           p.write_text(s)
           PY
       - name: Commit change
@@ -30,5 +31,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Place productivity first and add weather to hypothesis'
+          git commit -m 'Add 7 8 9 10 hour quick add buttons'
           git push
