@@ -16,18 +16,26 @@ jobs:
           start=s.index('function underscoreHeads(')
           end=s.index('function cfg()', start)
           new=r'''function underscoreHeads(v){return String(v||'').split(/\r?\n/).map(x=>x.trim()).filter(x=>x.startsWith('_')&&x.length>1)}
-function previousDayHeads(){if(!date.value)return{};const dt=new Date(date.value+'T00:00:00');dt.setDate(dt.getDate()-1);const prev=iso(dt),out={};let d={};try{d=JSON.parse(localStorage.getItem(`${PREFIX}day:${prev}`)||'{}')}catch{};for(const id of legacy){if(id==='staffMembers'||id==='virtualOrder'||id==='salesModels'||id==='bbSurvey')continue;const hs=underscoreHeads(d[id]);if(hs.length)out[id]=hs}try{const cb=JSON.parse(localStorage.getItem(customBodyKey(prev))||'[]');cb.forEach((v,n)=>{const hs=underscoreHeads(v);if(hs.length)out[`custom:${n}`]=hs})}catch{}return out}
+function customDefs(){let a=[];try{a=JSON.parse(localStorage.getItem(customDefsKey)||'[]')}catch{}let changed=false;a=a.map((x,i)=>{if(typeof x==='string'){changed=true;return{id:`custom_${Date.now()}_${i}`,name:x}}if(!x.id){changed=true;return{...x,id:`custom_${Date.now()}_${i}`}}return x});if(changed)localStorage.setItem(customDefsKey,JSON.stringify(a));return a}
+function customBodyMap(day=date.value){let raw=[];try{raw=JSON.parse(localStorage.getItem(customBodyKey(day))||'[]')}catch{}const defs=customDefs(),out={};if(Array.isArray(raw)){defs.forEach((d,i)=>out[d.id]=raw[i]||'')}else if(raw&&typeof raw==='object')Object.assign(out,raw);return out}
+function saveCustomBodyMap(day,map){localStorage.setItem(customBodyKey(day),JSON.stringify(map))}
+function previousDayHeads(){if(!date.value)return{standard:{},custom:{}};const dt=new Date(date.value+'T00:00:00');dt.setDate(dt.getDate()-1);const prev=iso(dt),out={standard:{},custom:{}};let d={};try{d=JSON.parse(localStorage.getItem(`${PREFIX}day:${prev}`)||'{}')}catch{};for(const id of legacy){if(id==='staffMembers'||id==='virtualOrder'||id==='salesModels'||id==='bbSurvey')continue;const hs=underscoreHeads(d[id]);if(hs.length)out.standard[id]=hs}const cb=customBodyMap(prev);for(const [id,v] of Object.entries(cb)){const hs=underscoreHeads(v);if(hs.length)out.custom[id]=hs}return out}
 function blank(){return{staffMembers:'',dailyTodo:[DEFAULTS.dailyTodo,...weekdays()].join('\n'),earlyTodo:DEFAULTS.earlyTodo,lateTodo:DEFAULTS.lateTodo,beforeGoal:'',dailyHypothesis:'',virtualOrder:'',salesModels:'',bbSurvey:'',oneWord:'',improve:'',stumble:'',impression:''}}
-function data(){let d=blank();let saved={};try{saved=JSON.parse(localStorage.getItem(dayKey())||'{}');d={...d,...saved}}catch{}const h=previousDayHeads();for(const [id,a] of Object.entries(h)){if(id.startsWith('custom:')||!(id in d)||!a.length)continue;if(!String(saved[id]??'').trim())d[id]=a.join('\n')}return d}
+function data(){let d=blank();let saved={};try{saved=JSON.parse(localStorage.getItem(dayKey())||'{}');d={...d,...saved}}catch{}const h=previousDayHeads().standard;for(const [id,a] of Object.entries(h)){if(!(id in d)||!a.length)continue;if(!String(saved[id]??'').trim())d[id]=a.join('\n')}return d}
 '''
           s=s[:start]+new+s[end:]
-          old="if(day===date.value){const h=previousMonthHeads();for(const [k,v] of Object.entries(h))if(k.startsWith('custom:')){const n=+k.slice(7);while(a.length<=n)a.push('');if(!String(a[n]||'').trim()&&v.length)a[n]=v.join('\\n')}}"
-          new2="if(day===date.value){const h=previousDayHeads();for(const [k,v] of Object.entries(h))if(k.startsWith('custom:')){const n=+k.slice(7);while(a.length<=n)a.push('');if(!String(a[n]||'').trim()&&v.length)a[n]=v.join('\\n')}}"
+          # Replace custom section loading with stable-ID map while keeping legacy arrays compatible.
+          old="function customBodies(day=date.value){let a=[];try{a=JSON.parse(localStorage.getItem(customBodyKey(day))||'[]')}catch{}if(!Array.isArray(a))a=[];if(day===date.value){const h=previousDayHeads();for(const [k,v] of Object.entries(h))if(k.startsWith('custom:')){const n=+k.slice(7);while(a.length<=n)a.push('');if(!String(a[n]||'').trim()&&v.length)a[n]=v.join('\\n')}}return a}"
+          new2="function customBodies(day=date.value){const defs=customDefs(),map=customBodyMap(day);if(day===date.value){const h=previousDayHeads().custom;let changed=false;for(const d of defs){if(!String(map[d.id]||'').trim()&&h[d.id]?.length){map[d.id]=h[d.id].join('\\n');changed=true}}if(changed)saveCustomBodyMap(day,map)}return defs.map(d=>map[d.id]||'')}"
           if old in s:s=s.replace(old,new2,1)
+          # Saving custom bodies: convert current textarea array to stable id map.
+          oldsave="localStorage.setItem(customBodyKey(),JSON.stringify(customBodiesNow()))"
+          newsave="(()=>{const defs=customDefs(),vals=customBodiesNow(),map={};defs.forEach((d,i)=>map[d.id]=vals[i]||'');saveCustomBodyMap(date.value,map)})()"
+          s=s.replace(oldsave,newsave)
           p.write_text(s,encoding='utf-8')
           PY
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Use previous day underscore lines only'
+          git commit -m 'Keep custom underscore carryover on same section'
           git push
