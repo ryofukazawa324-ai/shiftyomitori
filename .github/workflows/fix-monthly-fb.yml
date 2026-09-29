@@ -22,7 +22,7 @@ jobs:
             if(!date.value)return;
             const savedLoc=(localStorage.getItem(weatherLocationKey)||'東京都府中市').trim();
             try{
-              const candidates=[savedLoc,savedLoc.replace(/^東京都/,''),savedLoc.replace(/[都道府県]/g,'')].filter((v,i,a)=>v&&a.indexOf(v)===i);
+              const candidates=[savedLoc,savedLoc.replace(/^東京都/,''),savedLoc.replace(/[都道府県]/g,'').replace(/[市区町村]$/,'')].filter((v,i,a)=>v&&a.indexOf(v)===i);
               let q=null;
               for(const name of candidates){
                 const g=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=5&language=ja&format=json&countryCode=JP`);
@@ -33,7 +33,9 @@ jobs:
               if(!q)throw new Error('location not found');
               const z=new Date(date.value+'T00:00:00');
               const prev=`${z.getFullYear()-1}-${String(z.getMonth()+1).padStart(2,'0')}-${String(z.getDate()).padStart(2,'0')}`;
-              const f=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${q.latitude}&longitude=${q.longitude}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${date.value}&end_date=${date.value}`);
+              const today=iso(new Date());
+              const currentBase=date.value<=today?'https://archive-api.open-meteo.com/v1/archive':'https://api.open-meteo.com/v1/forecast';
+              const f=await fetch(`${currentBase}?latitude=${q.latitude}&longitude=${q.longitude}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${date.value}&end_date=${date.value}`);
               const fj=await f.json();
               const h=await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${q.latitude}&longitude=${q.longitude}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${prev}&end_date=${prev}`);
               const hj=await h.json();
@@ -62,3 +64,4 @@ jobs:
           git add index.html
           git commit -m 'Fix weather autofill in daily hypothesis'
           git push
+# trigger 2
