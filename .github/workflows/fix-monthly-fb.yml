@@ -1,4 +1,4 @@
-name: Fix weather autofill reliably
+name: Restore working app
 on:
   push:
     paths:
@@ -6,57 +6,17 @@ on:
 permissions:
   contents: write
 jobs:
-  fix:
+  restore:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Fix weather
+        with:
+          fetch-depth: 0
+      - name: Restore last working index
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('index.html'); s=p.read_text(encoding='utf-8')
-          a=s.index('async function refreshHypothesisWeather()')
-          b=s.index('function productivityState()',a)
-          fn=r'''async function refreshHypothesisWeather(){
-  if(!date.value)return;
-  const savedLoc=(localStorage.getItem(weatherLocationKey)||'東京都府中市').trim();
-  const status=$('weatherStatus');
-  try{
-    let q=null;
-    const names=[savedLoc,savedLoc.replace(/^東京都/,''),savedLoc.replace(/^東京都/, '').replace(/[市区町村]$/,'')].filter((v,i,a)=>v&&a.indexOf(v)===i);
-    for(const name of names){
-      try{const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=10&language=ja&format=json&countryCode=JP`);const j=await r.json();q=(j.results||[]).find(x=>String(x.admin1||'').includes('東京'))||(j.results||[])[0];if(q)break}catch(e){}
-    }
-    if(!q&&savedLoc.includes('府中'))q={latitude:35.6689,longitude:139.4777};
-    if(!q)throw new Error('location');
-    const z=new Date(date.value+'T00:00:00');
-    const prev=`${z.getFullYear()-1}-${String(z.getMonth()+1).padStart(2,'0')}-${String(z.getDate()).padStart(2,'0')}`;
-    const now=new Date(), target=new Date(date.value+'T00:00:00'), age=(now-target)/86400000;
-    let currentUrl;
-    if(age>7) currentUrl=`https://archive-api.open-meteo.com/v1/archive?latitude=${q.latitude}&longitude=${q.longitude}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${date.value}&end_date=${date.value}`;
-    else currentUrl=`https://api.open-meteo.com/v1/forecast?latitude=${q.latitude}&longitude=${q.longitude}&daily=weather_code&timezone=Asia%2FTokyo&past_days=7&forecast_days=16`;
-    const [cr,pr]=await Promise.all([fetch(currentUrl),fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${q.latitude}&longitude=${q.longitude}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${prev}&end_date=${prev}`)]);
-    const cj=await cr.json(),pj=await pr.json();
-    let cc=null;if(cj.daily?.time){const i=cj.daily.time.indexOf(date.value);if(i>=0)cc=cj.daily.weather_code?.[i]}
-    const pc=pj.daily?.weather_code?.[0];
-    if(cc==null||pc==null)throw new Error('weather');
-    const line=`今日：${weatherLabel(cc)}　前年：${weatherLabel(pc)}`;
-    let x={};try{x=JSON.parse(localStorage.getItem(dayKey())||'{}')}catch(e){}
-    const old=String(x.dailyHypothesis||'').replace(/^(?:今日天気：|今日：).*$/m,'').replace(/^\s*\n/,'');
-    x.dailyHypothesis=[line,old].filter(Boolean).join('\n');
-    localStorage.setItem(dayKey(),JSON.stringify(x));
-    const box=$('dailyHypothesis');if(box)box.value=x.dailyHypothesis;
-    render();if(status){status.textContent=`${savedLoc} の天気を取得しました。`;status.className='status ok'}
-  }catch(e){if(status){status.textContent='天気を取得できませんでした。';status.className='status error'}}
-}
-'''
-          s=s[:a]+fn+s[b:]
-          p.write_text(s,encoding='utf-8')
-          PY
-      - name: Commit
-        run: |
+          git checkout 9026ded9373a932216fb11f98e95de3912dbdb60 -- index.html
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Fix weather autofill for recent dates' || exit 0
+          git commit -m 'Restore working dashboard after weather regression'
           git push
