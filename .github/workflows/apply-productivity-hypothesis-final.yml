@@ -14,26 +14,23 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html'); s=p.read_text(encoding='utf-8')
-          # daily hypothesis as a normal configurable section
           old='["beforeGoal","出勤前目標","text"],["sales","販買実績","sales"]'
           new='["beforeGoal","出勤前目標","text"],["dailyHypothesis","本日の仮説","text"],["sales","販買実績","sales"]'
           if '"dailyHypothesis","本日の仮説"' not in s:
-              assert old in s, 'defs marker missing'
+              assert old in s
               s=s.replace(old,new,1)
           old='"lateTodo","beforeGoal","virtualOrder"'
           if '"lateTodo","beforeGoal","dailyHypothesis","virtualOrder"' not in s:
-              assert old in s, 'legacy marker missing'
+              assert old in s
               s=s.replace(old,'"lateTodo","beforeGoal","dailyHypothesis","virtualOrder"',1)
-          # productivity UI
           marker='  <button id="monthlyFbBtn" class="monthlyFbBtn" type="button">FB相談</button>'
           if 'id="productivityGuide"' not in s:
-              assert marker in s, 'monthly FB marker missing'
+              assert marker in s
               ui='''  <div id="productivityGuide" class="sectionCard"><div class="sectionHead"><h3>◆生産性・販買目標</h3><button id="productivityToggle" class="orderBtn" type="button">非表示</button></div><div id="productivityContent"><div class="twoCol"><div><label>目標生産性（万円/時間）</label><input id="prodTarget" type="number" step="0.1" inputmode="decimal"></div><div><label>現状生産性（万円/時間）</label><input id="prodCurrent" type="number" step="0.1" inputmode="decimal"></div><div><label>勤務済み時間</label><input id="prodWorked" type="number" step="0.1" inputmode="decimal"></div><div><label>月間勤務予定時間</label><input id="prodPlanned" type="number" step="0.1" inputmode="decimal"><div class="small">シフト表から取れない場合は手入力</div></div></div><div id="prodResult" class="saved" style="margin-top:12px"></div><label class="showLabel"><input id="prodInclude" type="checkbox"> 日報の表示・コピーにも記載する</label></div></div>\n'''
               s=s.replace(marker,ui+marker,1)
-          # JS functions before header
           marker2='function header(){'
           if 'function prodCalc()' not in s:
-              assert marker2 in s, 'header marker missing'
+              assert marker2 in s
               js=r'''const PRODKEY=`${PREFIX}productivityGuide`,PRODHIDE=`${PREFIX}productivityGuideHidden`;
 function prodState(){let x={target:4,current:'',worked:'',planned:'',include:false};try{x={...x,...JSON.parse(localStorage.getItem(PRODKEY)||'{}')}}catch{}return x}
 function prodCalc(){const x=prodState(),t=+x.target||0,c=+x.current||0,w=+x.worked||0,p=+x.planned||0;if(!t||!p)return null;const goal=t*p,now=c*w,rh=Math.max(0,p-w),remain=Math.max(0,goal-now),need=rh?remain/rh:0;let hours=8;const sm=String(selectedShift||'').match(/(\d+(?:\.\d+)?)\s*(?:h|時間)/i);if(sm)hours=+sm[1];return{x,goal,now,rh,remain,need,hours,today:need*hours}}
@@ -43,9 +40,8 @@ function prodSave(){const x={target:+($('prodTarget')?.value||0),current:+($('pr
 function prodSetup(){prodRender();['prodTarget','prodCurrent','prodWorked','prodPlanned'].forEach(id=>{const e=$(id);if(e)e.addEventListener('input',prodSave)});if($('prodInclude'))$('prodInclude').addEventListener('change',prodSave);if($('productivityToggle'))$('productivityToggle').onclick=()=>{localStorage.setItem(PRODHIDE,localStorage.getItem(PRODHIDE)==='1'?'0':'1');prodRender()}}
 '''
               s=s.replace(marker2,js+marker2,1)
-          # setup
           if 'prodSetup();restoreSavedWorkbook();' not in s:
-              assert 'restoreSavedWorkbook();' in s, 'restore marker missing'
+              assert 'restoreSavedWorkbook();' in s
               s=s.replace('restoreSavedWorkbook();','prodSetup();restoreSavedWorkbook();',1)
           p.write_text(s,encoding='utf-8')
           PY
