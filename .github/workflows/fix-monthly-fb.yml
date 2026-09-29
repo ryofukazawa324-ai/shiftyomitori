@@ -1,4 +1,4 @@
-name: Restore working app
+name: Fix underscore carryover
 on:
   push:
     paths:
@@ -6,17 +6,33 @@ on:
 permissions:
   contents: write
 jobs:
-  restore:
+  fix:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Restore last working index
+      - name: Fix carryover
         run: |
-          git checkout 9026ded9373a932216fb11f98e95de3912dbdb60 -- index.html
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          start=s.index('function underscoreHeads(')
+          end=s.index('function cfg()', start)
+          replacement=r'''function underscoreHeads(v){return String(v||'').split(/\r?\n/).map(x=>x.trim()).filter(x=>x.startsWith('_')&&x.length>1)}
+function previousDayHeads(){if(!date.value)return{};const dt=new Date(date.value+'T00:00:00');dt.setDate(dt.getDate()-1);const prev=iso(dt),out={};let d={};try{d=JSON.parse(localStorage.getItem(`${PREFIX}day:${prev}`)||'{}')}catch{};for(const id of legacy){if(id==='staffMembers'||id==='virtualOrder'||id==='salesModels'||id==='bbSurvey')continue;const hs=underscoreHeads(d[id]);if(hs.length)out[id]=hs}return out}
+function blank(){return{staffMembers:'',dailyTodo:[DEFAULTS.dailyTodo,...weekdays()].join('\n'),earlyTodo:DEFAULTS.earlyTodo,lateTodo:DEFAULTS.lateTodo,beforeGoal:'',dailyHypothesis:'',virtualOrder:'',salesModels:'',bbSurvey:'',oneWord:'',improve:'',stumble:'',impression:''}}
+function data(){let d=blank(),saved={};try{saved=JSON.parse(localStorage.getItem(dayKey())||'{}');d={...d,...saved}}catch{}const h=previousDayHeads();for(const [id,a] of Object.entries(h)){if(!(id in d)||!a.length)continue;if(!String(saved[id]??'').trim())d[id]=a.join('\n')}return d}
+'''
+          s=s[:start]+replacement+s[end:]
+          # Disable the old custom-section monthly carryover too; custom sections must not pull from arbitrary prior dates.
+          old="if(day===date.value){const h=previousMonthHeads();for(const [k,v] of Object.entries(h))if(k.startsWith('custom:')){const n=+k.slice(7);while(a.length<=n)a.push('');if(!String(a[n]||'').trim()&&v.length)a[n]=v.join('\\n')}}"
+          if old in s:s=s.replace(old,'',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Restore working dashboard after weather regression'
+          git commit -m 'Carry underscore lines from previous day only' || exit 0
           git push
