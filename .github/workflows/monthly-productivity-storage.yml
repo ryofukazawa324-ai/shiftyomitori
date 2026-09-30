@@ -1,0 +1,42 @@
+name: Store productivity by month
+on:
+  push:
+    paths:
+      - '.github/workflows/monthly-productivity-storage.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch monthly productivity storage
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old="const productivityKey=`${PREFIX}productivity`,productivityHiddenKey=`${PREFIX}productivityHidden`;"
+          new="const productivityLegacyKey=`${PREFIX}productivity`,productivityKey=()=>`${PREFIX}productivity:${date.value.slice(0,7)}`,productivityHiddenKey=`${PREFIX}productivityHidden`;"
+          if old not in s:
+              raise SystemExit('productivity key declaration not found')
+          s=s.replace(old,new,1)
+          old2="function productivityState(){let x={target:4,current:'',worked:'',planned:'',include:false};try{x={...x,...JSON.parse(localStorage.getItem(productivityKey)||'{}')}}catch{}return x}"
+          new2="function productivityState(){let x={target:4,current:'',worked:'',planned:'',include:false};try{const k=productivityKey();let raw=localStorage.getItem(k);if(!raw){const legacy=localStorage.getItem(productivityLegacyKey);if(legacy){raw=legacy;localStorage.setItem(k,legacy)}}x={...x,...JSON.parse(raw||'{}')}}catch{}return x}"
+          if old2 not in s:
+              raise SystemExit('productivityState not found')
+          s=s.replace(old2,new2,1)
+          old3="localStorage.setItem(productivityKey,JSON.stringify(x));refreshProductivity()"
+          new3="localStorage.setItem(productivityKey(),JSON.stringify(x));refreshProductivity()"
+          if old3 not in s:
+              raise SystemExit('saveProductivity storage call not found')
+          s=s.replace(old3,new3,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git diff --cached --quiet || git commit -m 'Save productivity values separately for each month'
+          git push
