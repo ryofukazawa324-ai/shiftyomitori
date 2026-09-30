@@ -16,18 +16,15 @@ jobs:
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-          # Add tools inside the existing dailyHypothesis card, after its textarea.
           needle='else h+=`<textarea id="${id}"></textarea>`;h+=`<label class="showLabel"'
           repl='''else{h+=`<textarea id="${id}"></textarea>`;if(id==='dailyHypothesis')h+=`<div id="hypothesisTools" class="saved" style="margin-top:10px"><div class="twoCol"><div><label>前年部門実績（万円）</label><input id="prevDeptSales" type="number" step="0.1" inputmode="decimal"></div><div><label>除外する割合（%）</label><input id="prevDeptPercent" type="number" min="0" max="100" step="1" inputmode="decimal" placeholder="例：60"></div></div><div style="margin-top:9px"><label>補足メモ</label><input id="deptGuideMemo" type="text" placeholder="例：サプライ除く"></div><div id="deptGuidePreview" class="small" style="margin-top:8px"></div></div>`}h+=`<label class="showLabel"'''
           if 'id="hypothesisTools"' not in s:
               if needle not in s: raise SystemExit('daily hypothesis build target not found')
               s=s.replace(needle,repl,1)
-          # Bind after edit HTML is built.
           bind="edit.querySelectorAll('[data-report-toggle]').forEach(e=>e.onchange=()=>{setReportIncluded(e.dataset.reportToggle,e.checked);render()});"
           if 'setupHypothesisTools();' not in s:
               if bind not in s: raise SystemExit('build bind target not found')
               s=s.replace(bind,bind+'setupHypothesisTools();',1)
-          # Add standalone helper functions before productivity functions.
           anchor='function productivityState()'
           if 'function hypothesisToolKey(' not in s:
               code=r'''function hypothesisToolKey(v=date.value){return `${PREFIX}hypothesisTools:${v}`}
@@ -38,11 +35,9 @@ function setupHypothesisTools(){const a=$('prevDeptSales'),p=$('prevDeptPercent'
 '''
               if anchor not in s: raise SystemExit('productivity anchor not found')
               s=s.replace(anchor,code+anchor,1)
-          # Make Tokyo the default weather setting without overwriting a saved user location.
           s=s.replace('placeholder="例：東京都府中市"','placeholder="東京都"',1)
-          # Existing weather code uses the stored setting; seed Tokyo only when empty, immediately before app init if possible.
           init='date.value=iso(new Date());'
-          if "weatherLocation')||'東京都'" not in s and init in s:
+          if "localStorage.setItem(`${PREFIX}weatherLocation`,'東京都')" not in s and init in s:
               s=s.replace(init,"if(!localStorage.getItem(`${PREFIX}weatherLocation`))localStorage.setItem(`${PREFIX}weatherLocation`,'東京都');"+init,1)
           p.write_text(s,encoding='utf-8')
           PY
@@ -53,3 +48,4 @@ function setupHypothesisTools(){const a=$('prevDeptSales'),p=$('prevDeptPercent'
           git add index.html
           git diff --cached --quiet || git commit -m 'Add hypothesis sales guide safely'
           git push
+# run 2026-09-30
