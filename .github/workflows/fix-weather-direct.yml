@@ -1,7 +1,8 @@
 name: Fix weather direct
 on:
   push:
-    paths: ['.github/workflows/fix-weather-direct.yml']
+    paths:
+      - '.github/workflows/fix-weather-direct.yml'
 permissions:
   contents: write
 jobs:
@@ -9,53 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch weather logic
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          p=Path('index.html')
-          s=p.read_text(encoding='utf-8')
-          pattern=r"async function refreshHypothesisWeather\(\)\{.*?\}\nfunction productivityState"
-          replacement=r'''async function refreshHypothesisWeather(){
-            if(!date.value)return;
-            const loc=localStorage.getItem(weatherLocationKey)||'東京都府中市';
-            const st=$('weatherStatus');
-            try{
-              let lat=35.6689,lon=139.4777;
-              const names=[loc,loc.replace(/^東京都/,''),loc.replace(/^東京都/, '').replace(/市$/,'')].filter(Boolean);
-              for(const name of [...new Set(names)]){
-                try{const g=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=ja&format=json`);const gj=await g.json();const q=gj.results?.[0];if(q){lat=q.latitude;lon=q.longitude;break}}catch{}
-              }
-              const z=new Date(date.value+'T00:00:00');
-              const prev=`${z.getFullYear()-1}-${String(z.getMonth()+1).padStart(2,'0')}-${String(z.getDate()).padStart(2,'0')}`;
-              const todayIso=iso(new Date());
-              let currentCode;
-              if(date.value<=todayIso){
-                const r=await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${date.value}&end_date=${date.value}`);const j=await r.json();currentCode=j.daily?.weather_code?.[0];
-                if(currentCode==null){const f=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${date.value}&end_date=${date.value}`);const fj=await f.json();currentCode=fj.daily?.weather_code?.[0]}
-              }else{
-                const f=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${date.value}&end_date=${date.value}`);const fj=await f.json();currentCode=fj.daily?.weather_code?.[0];
-              }
-              const h=await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&daily=weather_code&timezone=Asia%2FTokyo&start_date=${prev}&end_date=${prev}`);const hj=await h.json();const prevCode=hj.daily?.weather_code?.[0];
-              if(currentCode==null&&prevCode==null)throw Error('天気データなし');
-              const line=`今日：${weatherLabel(currentCode)}　前年：${weatherLabel(prevCode)}`;
-              const x=data(),body=String(x.dailyHypothesis||'');
-              x.dailyHypothesis=/^(?:今日(?:天気)?：).*$/m.test(body)?body.replace(/^(?:今日(?:天気)?：).*$/m,line):[line,body].filter(Boolean).join('\n');
-              localStorage.setItem(dayKey(),JSON.stringify(x));
-              if(st){st.textContent=`${loc} の天気を取得しました。`;st.className='status ok'}
-              build();render();
-            }catch(e){if(st){st.textContent=`天気取得エラー：${e.message}`;st.className='status error'}}
-          }
-          function productivityState'''
-          ns,n=re.subn(pattern,replacement,s,count=1,flags=re.S)
-          if n!=1: raise SystemExit(f'weather function replacement count={n}')
-          p.write_text(ns,encoding='utf-8')
-          PY
+      - name: Apply current hypothesis patch
+        run: node patch-hypothesis.js
       - name: Commit patch
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git commit -m 'Fix weather fetch and hypothesis insertion'
-          git push
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+          else
+            git commit -m 'Fix blank-only Tokyo weather autofill'
+            git push
+          fi
