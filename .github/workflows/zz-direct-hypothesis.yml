@@ -11,22 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply hypothesis patch and label rename
-        run: |
-          node patch-hypothesis.js
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('index.html')
-          s=p.read_text(encoding='utf-8')
-          s=s.replace("'部門販買目安'+", "'前年比部門販買目安'+")
-          s=s.replace('/^部門販買目安.*$/m', '/^(?:前年比)?部門販買目安.*$/m')
-          p.write_text(s,encoding='utf-8')
-          PY
+      - name: Apply latest hypothesis patch
+        run: node patch-hypothesis.js
       - run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
           if ! git diff --cached --quiet; then
-            git commit -m "Rename department sales guide label"
+            git commit -m "Apply hypothesis V5 settings"
             git push
           fi
