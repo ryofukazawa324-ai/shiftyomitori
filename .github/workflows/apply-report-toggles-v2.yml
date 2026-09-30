@@ -1,0 +1,64 @@
+name: apply-report-toggles-v2
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-report-toggles-v2.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch index.html
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+
+          # 1) report inclusion settings
+          anchor='function cfg(){'
+          code="""const reportCfgKey=`${PREFIX}reportInclude`;
+function reportCfg(){let x={};try{x=JSON.parse(localStorage.getItem(reportCfgKey)||'{}')}catch{}return x}
+function reportIncluded(tok){return reportCfg()[tok]!==false}
+function setReportIncluded(tok,v){const x=reportCfg();x[tok]=!!v;localStorage.setItem(reportCfgKey,JSON.stringify(x))}
+"""
+          if 'const reportCfgKey=' not in s:
+              assert anchor in s
+              s=s.replace(anchor,code+anchor,1)
+
+          # 2) custom item checkbox in edit mode
+          old='h+=`<div class="sectionCard"><h3>◆${esc(String(x.title||\'新しい項目\').replace(/^◆+/,\'\'))}</h3><textarea data-cb="${i}">${esc(x.body||\'\')}</textarea></div>`;continue'
+          new='h+=`<div class="sectionCard"><h3>◆${esc(String(x.title||\'新しい項目\').replace(/^◆+/,\'\'))}</h3><textarea data-cb="${i}">${esc(x.body||\'\')}</textarea><label class="showLabel" style="display:block;margin-top:8px"><input type="checkbox" data-report-toggle="c:${i}" ${reportIncluded(`c:${i}`)?\'checked\':\'\'}> 日報にも記載する</label></div>`;continue'
+          if old in s:s=s.replace(old,new,1)
+
+          # 3) standard item checkbox in edit mode
+          old="else h+=`<textarea id=\"${id}\"></textarea>`;h+='</div>'"
+          new="else h+=`<textarea id=\"${id}\"></textarea>`;h+=`<label class=\"showLabel\" style=\"display:block;margin-top:8px\"><input type=\"checkbox\" data-report-toggle=\"s:${id}\" ${reportIncluded(`s:${id}`)?'checked':''}> 日報にも記載する</label>`;h+='</div>'"
+          if old in s:s=s.replace(old,new,1)
+
+          # 4) bind checkboxes
+          old="edit.querySelectorAll('[data-cb]').forEach(e=>e.oninput=()=>{saveCustomBody(+e.dataset.cb,e.value);render()});$(\"editCopyBtn\").onclick=copy"
+          new="edit.querySelectorAll('[data-cb]').forEach(e=>e.oninput=()=>{saveCustomBody(+e.dataset.cb,e.value);render()});edit.querySelectorAll('[data-report-toggle]').forEach(e=>e.onchange=()=>{setReportIncluded(e.dataset.reportToggle,e.checked);render()});$(\"editCopyBtn\").onclick=copy"
+          if old in s:s=s.replace(old,new,1)
+
+          # 5) filter display/copy
+          old="if(x&&!x.hidden)o.push('',`◆${String(x.title||'新しい項目').replace(/^◆+/,'')}`,x.body||'');continue"
+          new="if(x&&!x.hidden&&reportIncluded(tok))o.push('',`◆${String(x.title||'新しい項目').replace(/^◆+/,'')}`,x.body||'');continue"
+          if old in s:s=s.replace(old,new,1)
+          old="const id=tok.slice(2);if(!visible(id))continue;if(id==='earlyTodo'"
+          new="const id=tok.slice(2);if(!visible(id)||!reportIncluded(tok))continue;if(id==='earlyTodo'"
+          if old in s:s=s.replace(old,new,1)
+
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit result
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          if ! git diff --cached --quiet; then
+            git commit -m 'Add per-item report inclusion toggles'
+            git push
+          fi
