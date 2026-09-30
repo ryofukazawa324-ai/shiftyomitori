@@ -10,21 +10,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch index
+      - name: Patch index safely
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-          start=s.index('function underscoreHeads(')
-          end=s.index('function cfg(', start)
+          start=s.find('function underscoreHeads(')
+          end=s.find('function cfg(', start)
+          if start < 0 or end < 0:
+              raise SystemExit('carryover block not found')
           new=r'''function underscoreHeads(v){return String(v||'').split(/\r?\n/).map(x=>x.trim()).filter(x=>x.startsWith('_')&&x.length>1)}
 function previousDayHeads(){if(!date.value)return{};const dt=new Date(date.value+'T00:00:00');dt.setDate(dt.getDate()-1);const prev=iso(dt),out={};let d={};try{d=JSON.parse(localStorage.getItem(`${PREFIX}day:${prev}`)||'{}')}catch{};for(const id of legacy){if(id==='staffMembers'||id==='virtualOrder'||id==='salesModels'||id==='bbSurvey')continue;const hs=underscoreHeads(d[id]);if(hs.length)out[id]=[...new Set(hs)]}try{const cb=JSON.parse(localStorage.getItem(customBodyKey(prev))||'[]');cb.forEach((v,n)=>{const hs=underscoreHeads(v);if(hs.length)out[`custom:${n}`]=[...new Set(hs)]})}catch{}return out}
 function blank(){return{staffMembers:'',dailyTodo:[DEFAULTS.dailyTodo,...weekdays()].join('\n'),earlyTodo:DEFAULTS.earlyTodo,lateTodo:DEFAULTS.lateTodo,beforeGoal:'',dailyHypothesis:'',virtualOrder:'',salesModels:'',bbSurvey:'',oneWord:'',improve:'',stumble:'',impression:''}}
 function data(){let d=blank(),saved={};try{saved=JSON.parse(localStorage.getItem(dayKey())||'{}');d={...d,...saved}}catch{}const h=previousDayHeads();for(const [id,a] of Object.entries(h)){if(id.startsWith('custom:')||!(id in d)||!a.length)continue;if(!String(saved[id]??'').trim())d[id]=a.join('\n')}return d}
 '''
           s=s[:start]+new+s[end:]
-          s=s.replace("const h=previousMonthHeads();for(const [k,v] of Object.entries(h))if(k.startsWith('custom:'))","const h=previousDayHeads();for(const [k,v] of Object.entries(h))if(k.startsWith('custom:'))")
+          s=s.replace('const h=previousMonthHeads();for(const [k,v] of Object.entries(h))if(k.startsWith(\'custom:\'))','const h=previousDayHeads();for(const [k,v] of Object.entries(h))if(k.startsWith(\'custom:\'))')
+          if 'previousMonthHeads' in s:
+              raise SystemExit('old previousMonthHeads still remains')
           p.write_text(s,encoding='utf-8')
           PY
       - name: Commit
@@ -32,6 +36,6 @@ function data(){let d=blank(),saved={};try{saved=JSON.parse(localStorage.getItem
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git diff --cached --quiet || git commit -m 'Use previous day underscore carryover only'
+          git diff --cached --quiet || git commit -m 'Fix underscore carryover to previous day only'
           git push
-# rerun 2026-09-30 12:47 JST
+# force rerun 2026-09-30 12:49 JST
