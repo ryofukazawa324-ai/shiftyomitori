@@ -129,7 +129,10 @@ $('exportBackupBtn').onclick=exportBackup;$('importBackupFile').onchange=async e
 
 
 
-/* hypothesisSafeAddonV2 */
+
+
+
+/* hypothesisSafeAddonV3 */
 ;(()=>{
  const P='workReport:',q=id=>document.getElementById(id),dateEl=q('targetDate');
  const key=()=>P+'hypothesisGuide:'+((dateEl&&dateEl.value)||'');
@@ -141,12 +144,11 @@ $('exportBackupBtn').onclick=exportBackup;$('importBackupFile').onchange=async e
  const save=()=>{const z={prev:a.value,percent:pc.value,memo:m.value};localStorage.setItem(key(),JSON.stringify(z));r.textContent=guide(z)||'前年実績から指定％を除いた金額を計算します';const line=guide(z);if(line){const cur=ta.value||'';const re=/^(?:前年比)?部門販買目安.*$/m;ta.value=re.test(cur)?cur.replace(re,line):(cur.trim()?cur.trimEnd()+'\n'+line:line);ta.dispatchEvent(new Event('input',{bubbles:true}))}};a.oninput=save;pc.oninput=save;m.oninput=save;r.textContent=guide(x)||'前年実績から指定％を除いた金額を計算します'}
  function codeToWord(c){c=Number(c);if(c===0||c===1)return'晴れ';if(c===2||c===3||c===45||c===48)return'曇り';return'雨'}
  async function weatherFor(lat,lon,ds){const today=new Date(),d=new Date(ds+'T00:00:00'),diff=(d-today)/86400000;const base=(diff>=-90&&diff<=16)?'https://api.open-meteo.com/v1/forecast':'https://archive-api.open-meteo.com/v1/archive';const u=base+'?latitude='+lat+'&longitude='+lon+'&start_date='+ds+'&end_date='+ds+'&daily=weather_code&timezone=Asia%2FTokyo';const j=await fetch(u).then(r=>r.json());return codeToWord(j.daily.weather_code[0])}
- function cleanWeatherLines(v){return String(v||'').split('\n').filter(line=>!/^今日天気[：:]|^前年天気[：:]|^\d{1,2}月\d{1,2}日$|^本日\s*(晴れ|曇り|雨)$|^前年\s*(晴れ|曇り|雨)$/.test(line.trim())).join('\n').trim()}
- async function fillWeather(){const ta=q('dailyHypothesis');if(!ta||!dateEl||!dateEl.value)return;let loc=(q('weatherLocation')&&q('weatherLocation').value.trim())||localStorage.getItem(P+'weatherLocation')||'東京都';try{const g=await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(loc)+'&count=1&language=ja&format=json').then(r=>r.json());const z=g.results&&g.results[0];if(!z)return;const ds=dateEl.value,py=String(Number(ds.slice(0,4))-1)+ds.slice(4),[now,prev]=await Promise.all([weatherFor(z.latitude,z.longitude,ds),weatherFor(z.latitude,z.longitude,py)]),d=new Date(ds+'T00:00:00');const weather=(d.getMonth()+1)+'月'+d.getDate()+'日 今日:'+now+'　前年:'+prev;const rest=cleanWeatherLines(ta.value);ta.value=weather+(rest?'\n'+rest:'');ta.dispatchEvent(new Event('input',{bubbles:true}))}catch(e){console.warn('weather fill skipped',e)}}
- function defaultTokyo(){const w=q('weatherLocation');if(w&&!w.value.trim()){w.value='東京都';try{localStorage.setItem(P+'weatherLocation','東京都')}catch{}}}
- const ed=q('editMode');if(ed)new MutationObserver(()=>{install()}).observe(ed,{childList:true,subtree:true});
- setTimeout(()=>{defaultTokyo();install();fillWeather()},150);
- if(dateEl)dateEl.addEventListener('change',()=>setTimeout(()=>{defaultTokyo();install();fillWeather()},150));
+ async function fillWeatherIfBlank(){const ta=q('dailyHypothesis');if(!ta||!dateEl||!dateEl.value||ta.value.trim())return;try{const g=await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent('東京都')+'&count=1&language=ja&format=json').then(r=>r.json());const z=g.results&&g.results[0];if(!z)return;const ds=dateEl.value,py=String(Number(ds.slice(0,4))-1)+ds.slice(4),[now,prev]=await Promise.all([weatherFor(z.latitude,z.longitude,ds),weatherFor(z.latitude,z.longitude,py)]),d=new Date(ds+'T00:00:00');ta.value=(d.getMonth()+1)+'月'+d.getDate()+'日 今日:'+now+'　前年:'+prev;ta.dispatchEvent(new Event('input',{bubbles:true}))}catch(e){console.warn('weather fill skipped',e)}}
+ function defaultTokyo(){const w=q('weatherLocation');if(w){w.value='東京都';w.readOnly=true;try{localStorage.setItem(P+'weatherLocation','東京都')}catch{}}}
+ const ed=q('editMode');if(ed)new MutationObserver(()=>install()).observe(ed,{childList:true,subtree:true});
+ setTimeout(()=>{defaultTokyo();install();fillWeatherIfBlank()},150);
+ if(dateEl)dateEl.addEventListener('change',()=>setTimeout(()=>{defaultTokyo();install();fillWeatherIfBlank()},150));
 })();
 
 </script>
