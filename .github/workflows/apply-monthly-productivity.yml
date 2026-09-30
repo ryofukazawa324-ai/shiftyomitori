@@ -15,14 +15,13 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html'); s=p.read_text(encoding='utf-8')
-          old="else h+=`<textarea id=\"${id}\"></textarea>`;h+='</div>'"
-          new="else{h+=`<textarea id=\"${id}\"></textarea>`;if(id==='dailyHypothesis')h+=`<div class=\"saved\" style=\"margin-top:10px\"><div class=\"twoCol\"><div><label>前年部門実績（万円）</label><input id=\"prevDeptSales\" type=\"number\" step=\"0.1\" inputmode=\"decimal\"></div><div><label>除外する割合（%）</label><input id=\"prevDeptPercent\" type=\"number\" min=\"0\" max=\"100\" step=\"1\" inputmode=\"decimal\" placeholder=\"例：60\"></div></div><div style=\"margin-top:9px\"><label>補足メモ</label><input id=\"deptGuideMemo\" type=\"text\" placeholder=\"例：サプライ除く\"></div><div id=\"deptSalesGuideResult\" class=\"small\" style=\"margin-top:8px\"></div></div>`}h+='</div>'"
-          if old not in s: raise SystemExit('current build target not found')
-          s=s.replace(old,new,1)
-          old2="edit.querySelectorAll('[data-cb]').forEach(e=>e.oninput=()=>{saveCustomBody(+e.dataset.cb,e.value);render()});$(\"editCopyBtn\").onclick=copy}"
-          new2="edit.querySelectorAll('[data-cb]').forEach(e=>e.oninput=()=>{saveCustomBody(+e.dataset.cb,e.value);render()});setupDeptSalesGuide();$(\"editCopyBtn\").onclick=copy}"
-          if old2 not in s: raise SystemExit('build setup target not found')
-          s=s.replace(old2,new2,1)
+          needle=';else h+=`<textarea id="${id}"></textarea>`;h+=\'</div>\'}h+=\'<button id="editCopyBtn"'
+          replacement=';else{h+=`<textarea id="${id}"></textarea>`;if(id===\'dailyHypothesis\')h+=`<div class="saved" style="margin-top:10px"><div class="twoCol"><div><label>前年部門実績（万円）</label><input id="prevDeptSales" type="number" step="0.1" inputmode="decimal"></div><div><label>除外する割合（%）</label><input id="prevDeptPercent" type="number" min="0" max="100" step="1" inputmode="decimal" placeholder="例：60"></div></div><div style="margin-top:9px"><label>補足メモ</label><input id="deptGuideMemo" type="text" placeholder="例：サプライ除く"></div><div id="deptSalesGuideResult" class="small" style="margin-top:8px"></div></div>`}h+=\'</div>\'}h+=\'<button id="editCopyBtn"'
+          if needle not in s: raise SystemExit('build target not found')
+          s=s.replace(needle,replacement,1)
+          setup='edit.querySelectorAll(\'[data-cb]\').forEach(e=>e.oninput=()=>{saveCustomBody(+e.dataset.cb,e.value);render()});$("editCopyBtn").onclick=copy}'
+          if setup not in s: raise SystemExit('setup target not found')
+          s=s.replace(setup,setup.replace('$("editCopyBtn")','setupDeptSalesGuide();$("editCopyBtn")'),1)
           anchor='function productivityState()'
           code=r'''function deptGuideKey(v=date.value){return `${PREFIX}deptGuide:${v}`}
 function previousDateString(){const z=new Date(date.value+'T00:00:00');z.setDate(z.getDate()-1);return iso(z)}
@@ -41,6 +40,6 @@ function setupDeptSalesGuide(){const a=$('prevDeptSales'),p=$('prevDeptPercent')
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git diff --cached --quiet || git commit -m 'Add department guide percent and memo'
+          git diff --cached --quiet || git commit -m 'Add department sales guide'
           git push
-# retry 2
+# exact current build target
