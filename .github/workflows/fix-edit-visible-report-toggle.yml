@@ -1,0 +1,33 @@
+name: fix-edit-visible-report-toggle
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-edit-visible-report-toggle.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Keep edit sections visible
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          # In build(), report inclusion must not control edit-screen visibility.
+          start=s.find('function build()')
+          end=s.find('function render()', start)
+          if start<0 or end<0: raise SystemExit('build/render not found')
+          b=s[start:end]
+          b=b.replace("if(!visible(id)||!reportIncluded(tok))continue;","if(!visible(id))continue;")
+          s=s[:start]+b+s[end:]
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git diff --cached --quiet || git commit -m 'Keep report-excluded sections visible in edit mode'
+          git push
