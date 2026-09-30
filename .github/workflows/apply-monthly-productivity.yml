@@ -10,20 +10,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch monthly BB count
+      - name: Add department sales guide
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-          s=s.replace("function productivityState(){let x={target:4,current:'',worked:'',planned:'',include:false};", "function productivityState(){let x={target:4,current:'',worked:'',planned:'',include:false,bbCount:0};",1)
-          s=s.replace("const x={target:+($('targetProductivity')?.value||0),current:+($('currentProductivity')?.value||0),worked:+($('workedHours')?.value||0),planned:+($('plannedHours')?.value||0),include:!!$('includeProductivityInReport')?.checked};", "const old=productivityState(),x={target:+($('targetProductivity')?.value||0),current:+($('currentProductivity')?.value||0),worked:+($('workedHours')?.value||0),planned:+($('plannedHours')?.value||0),include:!!$('includeProductivityInReport')?.checked,bbCount:+old.bbCount||0};",1)
-          s=s.replace("lines.push(`BB件数：${+(d.bbSurvey||0)}件`)", "lines.push(`BB件数：${+(x.bbCount||0)}件`)",1)
-          s=s.replace("bb.value=+(data().bbSurvey||0)", "bb.value=+(x.bbCount||0)",1)
-          old="const saveBb=()=>{const d=data();d.bbSurvey=String(Math.max(0,Math.floor(+($('productivityBbCount')?.value||0))));localStorage.setItem(dayKey(),JSON.stringify(d));build();render();refreshProductivity()}"
-          new="const saveBb=()=>{const x=productivityState();x.bbCount=Math.max(0,Math.floor(+($('productivityBbCount')?.value||0)));localStorage.setItem(productivityKey(),JSON.stringify(x));render();refreshProductivity()}"
-          if old not in s: raise SystemExit('BB save target not found')
-          s=s.replace(old,new,1)
+          # Add controls immediately below the daily hypothesis textarea when cards are built.
+          target="c.appendChild(ta);edit.appendChild(c)"
+          repl="""c.appendChild(ta);if(d.id==='dailyHypothesis'){const box=document.createElement('div');box.className='saved';box.style.marginTop='10px';box.innerHTML='<div class=\"twoCol\"><div><label>前年部門実績（万円）</label><input id=\"prevDeptSales\" type=\"number\" step=\"0.1\" inputmode=\"decimal\"></div><div><label>割り算</label><input id=\"prevDeptDivisor\" type=\"number\" step=\"0.1\" inputmode=\"decimal\" placeholder=\"例：1.0\"></div></div><div id=\"deptSalesGuideResult\" class=\"small\" style=\"margin-top:8px\"></div>';c.appendChild(box);setTimeout(setupDeptSalesGuide,0)}edit.appendChild(c)"""
+          if target not in s: raise SystemExit('build target not found')
+          s=s.replace(target,repl,1)
+          # Store per day, calculate, and inject/update only the generated line in hypothesis text.
+          anchor="function productivityState()"
+          code=r'''function deptGuideKey(){return `${PREFIX}deptGuide:${date.value}`}
+function deptGuideState(){let x={prev:'',divisor:''};try{x={...x,...JSON.parse(localStorage.getItem(deptGuideKey())||'{}')}}catch{}return x}
+function deptGuideValue(){const x=deptGuideState(),a=+x.prev||0,b=+x.divisor||0;return a&&b?a/b:0}
+function applyDeptGuideLine(){const v=deptGuideValue();if(!v)return;const d=data(),line=`部門販買目安：${v.toFixed(1)}万円`,cur=String(d.dailyHypothesis||'');const re=/^部門販買目安：.*$/m;d.dailyHypothesis=re.test(cur)?cur.replace(re,line):(cur.trim()?cur.trimEnd()+'\n'+line:line);localStorage.setItem(dayKey(),JSON.stringify(d));const ta=$('dailyHypothesis');if(ta&&document.activeElement!==ta)ta.value=d.dailyHypothesis;render()}
+function setupDeptSalesGuide(){const x=deptGuideState(),a=$('prevDeptSales'),b=$('prevDeptDivisor'),r=$('deptSalesGuideResult');if(!a||!b)return;a.value=x.prev??'';b.value=x.divisor??'';const save=()=>{const n={prev:a.value,divisor:b.value};localStorage.setItem(deptGuideKey(),JSON.stringify(n));const v=deptGuideValue();if(r)r.textContent=v?`部門販買目安：${v.toFixed(1)}万円`:'前年部門実績 ÷ 割り算 の結果を本文へ入れます';if(v)applyDeptGuideLine()};a.oninput=save;b.oninput=save;const v=deptGuideValue();if(r)r.textContent=v?`部門販買目安：${v.toFixed(1)}万円`:'前年部門実績 ÷ 割り算 の結果を本文へ入れます'}
+'''
+          if anchor not in s: raise SystemExit('function anchor not found')
+          s=s.replace(anchor,code+anchor,1)
+          # Ensure changing dates refreshes controls after rebuild.
           p.write_text(s,encoding='utf-8')
           PY
       - name: Commit
@@ -31,6 +39,6 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git diff --cached --quiet || git commit -m 'Store BB count by month'
+          git diff --cached --quiet || git commit -m 'Add department sales guide to daily hypothesis'
           git push
-# trigger monthly BB 2026-09-30
+# trigger department guide 2026-09-30
