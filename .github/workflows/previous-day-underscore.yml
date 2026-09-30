@@ -34,4 +34,4 @@ function data(){let d=blank(),saved={};try{saved=JSON.parse(localStorage.getItem
           git add index.html
           git diff --cached --quiet || git commit -m 'Use previous day underscore carryover only'
           git push
-# rerun 2026-09-30
+# rerun 2026-09-30 12:47 JST
