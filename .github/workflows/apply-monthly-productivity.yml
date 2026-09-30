@@ -10,16 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch index
+      - name: Patch monthly BB count
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('index.html')
           s=p.read_text(encoding='utf-8')
-          s=s.replace("const productivityKey=`${PREFIX}productivity`,productivityHiddenKey=`${PREFIX}productivityHidden`;", "const productivityLegacyKey=`${PREFIX}productivity`,productivityKey=()=>`${PREFIX}productivity:${date.value.slice(0,7)}`,productivityHiddenKey=`${PREFIX}productivityHidden`;")
-          s=s.replace("function productivityState(){let x={target:4,current:'',worked:'',planned:'',include:false};try{x={...x,...JSON.parse(localStorage.getItem(productivityKey)||'{}')}}catch{}return x}", "function productivityState(){let x={target:4,current:'',worked:'',planned:'',include:false};try{const k=productivityKey(),v=localStorage.getItem(k);if(v)x={...x,...JSON.parse(v)};else{const old=localStorage.getItem(productivityLegacyKey);if(old){x={...x,...JSON.parse(old)};localStorage.setItem(k,JSON.stringify(x))}}}catch{}return x}")
-          s=s.replace("localStorage.setItem(productivityKey,JSON.stringify(x));refreshProductivity()", "localStorage.setItem(productivityKey(),JSON.stringify(x));refreshProductivity()")
-          s=s.replace("function load(){header();build();render();updateShift();refreshHypothesisWeather()}", "function load(){header();build();render();updateShift();refreshProductivity();refreshHypothesisWeather()}")
+          s=s.replace("function productivityState(){let x={target:4,current:'',worked:'',planned:'',include:false};", "function productivityState(){let x={target:4,current:'',worked:'',planned:'',include:false,bbCount:0};",1)
+          s=s.replace("const x={target:+($('targetProductivity')?.value||0),current:+($('currentProductivity')?.value||0),worked:+($('workedHours')?.value||0),planned:+($('plannedHours')?.value||0),include:!!$('includeProductivityInReport')?.checked};", "const old=productivityState(),x={target:+($('targetProductivity')?.value||0),current:+($('currentProductivity')?.value||0),worked:+($('workedHours')?.value||0),planned:+($('plannedHours')?.value||0),include:!!$('includeProductivityInReport')?.checked,bbCount:+old.bbCount||0};",1)
+          s=s.replace("lines.push(`BB件数：${+(d.bbSurvey||0)}件`)", "lines.push(`BB件数：${+(x.bbCount||0)}件`)",1)
+          s=s.replace("bb.value=+(data().bbSurvey||0)", "bb.value=+(x.bbCount||0)",1)
+          old="const saveBb=()=>{const d=data();d.bbSurvey=String(Math.max(0,Math.floor(+($('productivityBbCount')?.value||0))));localStorage.setItem(dayKey(),JSON.stringify(d));build();render();refreshProductivity()}"
+          new="const saveBb=()=>{const x=productivityState();x.bbCount=Math.max(0,Math.floor(+($('productivityBbCount')?.value||0)));localStorage.setItem(productivityKey(),JSON.stringify(x));render();refreshProductivity()}"
+          if old not in s: raise SystemExit('BB save target not found')
+          s=s.replace(old,new,1)
           p.write_text(s,encoding='utf-8')
           PY
       - name: Commit
@@ -27,5 +31,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add index.html
-          git diff --cached --quiet || git commit -m 'Save productivity by month'
+          git diff --cached --quiet || git commit -m 'Store BB count by month'
           git push
