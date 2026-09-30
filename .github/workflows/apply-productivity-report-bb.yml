@@ -1,0 +1,47 @@
+name: Apply productivity report and BB counter
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-productivity-report-bb.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch index
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old='''<div id="productivityResult" class="saved" style="white-space:pre-wrap;margin-top:10px"></div><label class="showLabel"><input id="includeProductivityInReport" type="checkbox"> 日報にも記載する</label>'''
+          new='''<div id="productivityResult" class="saved" style="white-space:pre-wrap;margin-top:10px"></div><div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-top:10px"><div><label>BB件数</label><input id="productivityBbCount" type="number" min="0" step="1" inputmode="numeric"></div><button id="productivityBbAdd" class="orderBtn" type="button">＋1</button></div><label class="showLabel" style="display:block;margin-top:10px"><input id="includeProductivityInReport" type="checkbox"> 日報にも記載する</label>'''
+          if old not in s: raise SystemExit('productivity html target not found')
+          s=s.replace(old,new,1)
+          old="""function productivityText(){const q=productivityCalc();if(!q)return '目標生産性と勤務時間を入力すると計算します。';return `月間販買目標：${q.goal.toFixed(1)}万円\\n目標まで残り：${q.remain.toFixed(1)}万円\\n残り時間で必要な生産性：${q.need.toFixed(2)}万円/時間\\n残り勤務日数目安：${q.remainingDays.toFixed(1)}日（1日8.5時間換算）\\n本日の販買目安：${q.today.toFixed(1)}万円`}"""
+          new="""function productivityText(){const q=productivityCalc();if(!q)return '目標生産性と勤務時間を入力すると計算します。';return `月間販買目標：${q.goal.toFixed(1)}万円\\n目標まで残り：${q.remain.toFixed(1)}万円\\n残り時間で必要な生産性：${q.need.toFixed(2)}万円/時間\\n残り勤務日数目安：${q.remainingDays.toFixed(1)}日（1日8.5時間換算）\\n本日の販買目安：${q.today.toFixed(1)}万円`}\nfunction productivityReportText(){const x=productivityState(),q=productivityCalc(),d=data(),lines=[];if(q)lines.push(`目標生産性：${(+x.target||0).toFixed(1)}万円/時間`,`現状生産性：${(+x.current||0).toFixed(1)}万円/時間`,`本日の販買目安：${q.today.toFixed(1)}万円`);else lines.push(productivityText());lines.push(`BB件数：${+(d.bbSurvey||0)}件`);return lines.join('\\n')}"""
+          if old not in s: raise SystemExit('productivityText target not found')
+          s=s.replace(old,new,1)
+          old="""function refreshProductivity(){const x=productivityState();[['targetProductivity',x.target],['currentProductivity',x.current],['workedHours',x.worked],['plannedHours',x.planned]].forEach(([id,v])=>{const e=$(id);if(e&&document.activeElement!==e)e.value=v??''});if($('includeProductivityInReport'))$('includeProductivityInReport').checked=!!x.include;"""
+          new="""function refreshProductivity(){const x=productivityState();[['targetProductivity',x.target],['currentProductivity',x.current],['workedHours',x.worked],['plannedHours',x.planned]].forEach(([id,v])=>{const e=$(id);if(e&&document.activeElement!==e)e.value=v??''});const bb=$('productivityBbCount');if(bb&&document.activeElement!==bb)bb.value=+(data().bbSurvey||0);if($('includeProductivityInReport'))$('includeProductivityInReport').checked=!!x.include;"""
+          if old not in s: raise SystemExit('refresh target not found')
+          s=s.replace(old,new,1)
+          old="""function setupProductivity(){refreshProductivity();['targetProductivity','currentProductivity','workedHours','plannedHours'].forEach(id=>{if($(id))$(id).oninput=saveProductivity});document.querySelectorAll('.workedHourAdd').forEach(b=>b.onclick=()=>{const e=$('workedHours');e.value=(+(e.value||0)+(+b.dataset.hours||0));saveProductivity()});if($('includeProductivityInReport'))$('includeProductivityInReport').onchange=saveProductivity;"""
+          new="""function setupProductivity(){refreshProductivity();['targetProductivity','currentProductivity','workedHours','plannedHours'].forEach(id=>{if($(id))$(id).oninput=saveProductivity});document.querySelectorAll('.workedHourAdd').forEach(b=>b.onclick=()=>{const e=$('workedHours');e.value=(+(e.value||0)+(+b.dataset.hours||0));saveProductivity()});const saveBb=()=>{const d=data();d.bbSurvey=String(Math.max(0,Math.floor(+($('productivityBbCount')?.value||0))));localStorage.setItem(dayKey(),JSON.stringify(d));build();render();refreshProductivity()};if($('productivityBbCount'))$('productivityBbCount').onchange=saveBb;if($('productivityBbAdd'))$('productivityBbAdd').onclick=()=>{const e=$('productivityBbCount');e.value=+(e.value||0)+1;saveBb()};if($('includeProductivityInReport'))$('includeProductivityInReport').onchange=()=>{saveProductivity();render()};"""
+          if old not in s: raise SystemExit('setup target not found')
+          s=s.replace(old,new,1)
+          old="""$(\"viewText\").textContent=o.join('\\n').trim()}"""
+          new="""const ps=productivityState();if(ps.include)o.splice(1,0,'',`◆生産性・販買目標`,productivityReportText());$(\"viewText\").textContent=o.join('\\n').trim()}"""
+          if old not in s: raise SystemExit('render target not found')
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git diff --cached --quiet || git commit -m 'Show productivity in report and add BB counter'
+          git push
