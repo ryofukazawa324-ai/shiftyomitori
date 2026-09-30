@@ -1,0 +1,47 @@
+name: direct-report-toggle-fix
+on:
+  push:
+    paths:
+      - '.github/workflows/direct-report-toggle-fix.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch index
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          if 'const reportCfgKey=' not in s:
+              anchor='function cfg()'
+              if anchor not in s: raise SystemExit('cfg anchor not found')
+              s=s.replace(anchor,"const reportCfgKey=`${PREFIX}reportInclude`;\nfunction reportCfg(){let x={};try{x=JSON.parse(localStorage.getItem(reportCfgKey)||'{}')}catch{}return x}\nfunction reportIncluded(tok){return reportCfg()[tok]!==false}\nfunction setReportIncluded(tok,v){const x=reportCfg();x[tok]=!!v;localStorage.setItem(reportCfgKey,JSON.stringify(x))}\n"+anchor,1)
+          # render() filtering: standard and custom sections
+          s=s.replace("if(x&&!x.hidden)o.push('',`◆${String(x.title||'新しい項目').replace(/^◆+/, '')}`,x.body||'');continue", "if(x&&!x.hidden&&reportIncluded(tok))o.push('',`◆${String(x.title||'新しい項目').replace(/^◆+/, '')}`,x.body||'');continue")
+          s=s.replace("if(x&&!x.hidden)o.push('',`◆${String(x.title||'新しい項目').replace(/^◆+/,'')}`,x.body||'');continue", "if(x&&!x.hidden&&reportIncluded(tok))o.push('',`◆${String(x.title||'新しい項目').replace(/^◆+/,'')}`,x.body||'');continue")
+          s=s.replace("const id=tok.slice(2);if(!visible(id))continue;", "const id=tok.slice(2);if(!visible(id)||!reportIncluded(tok))continue;")
+          # Build checkboxes by inserting before closing standard/custom cards using exact current fragments.
+          custom="h+=`<div class=\"sectionCard\"><h3>◆${esc(String(x.title||'新しい項目').replace(/^◆+/,''))}</h3><textarea data-cb=\"${i}\">${esc(x.body||'')}</textarea></div>`;"
+          custom_new="h+=`<div class=\"sectionCard\"><h3>◆${esc(String(x.title||'新しい項目').replace(/^◆+/,''))}</h3><textarea data-cb=\"${i}\">${esc(x.body||'')}</textarea><label class=\"showLabel\" style=\"display:block;margin-top:8px\"><input type=\"checkbox\" data-report-toggle=\"c:${i}\" ${reportIncluded(`c:${i}`)?'checked':''}> 日報にも記載する</label></div>`;"
+          if custom in s: s=s.replace(custom,custom_new,1)
+          # standard textarea branch
+          std="else h+=`<textarea id=\"${id}\"></textarea>`;h+='</div>'"
+          std_new="else h+=`<textarea id=\"${id}\"></textarea>`;h+=`<label class=\"showLabel\" style=\"display:block;margin-top:8px\"><input type=\"checkbox\" data-report-toggle=\"s:${id}\" ${reportIncluded(`s:${id}`)?'checked':''}> 日報にも記載する</label>`;h+='</div>'"
+          if std in s: s=s.replace(std,std_new,1)
+          # bind checkbox events
+          bind="edit.querySelectorAll('[data-cb]').forEach(e=>e.oninput=()=>{saveCustomBody(+e.dataset.cb,e.value);render()});"
+          if bind in s and "edit.querySelectorAll('[data-report-toggle]')" not in s:
+              s=s.replace(bind,bind+"edit.querySelectorAll('[data-report-toggle]').forEach(e=>e.onchange=()=>{setReportIncluded(e.dataset.reportToggle,e.checked);render()});",1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit patched index
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html
+          git diff --cached --quiet || git commit -m 'Add per-section report inclusion toggles'
+          git push
