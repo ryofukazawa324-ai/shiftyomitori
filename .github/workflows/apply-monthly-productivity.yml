@@ -43,4 +43,4 @@ function setupDeptSalesGuide(){const a=$('prevDeptSales'),p=$('prevDeptPercent')
           git add index.html
           git diff --cached --quiet || git commit -m 'Add department guide percent and memo'
           git push
-# trigger current-ui fix
+# retry 2
