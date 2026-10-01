@@ -144,52 +144,41 @@ $('exportBackupBtn').onclick=exportBackup;$('importBackupFile').onchange=async e
 
 
 
-/* hypothesisSafeAddonV5 */
-;(()=>{
- const P='workReport:',q=id=>document.getElementById(id),dateEl=q('targetDate');
- const key=()=>P+'hypothesisGuide:'+((dateEl&&dateEl.value)||'');
- const prevDate=()=>{const d=new Date(dateEl.value+'T00:00:00');d.setDate(d.getDate()-1);return d.toISOString().slice(0,10)};
- function load(){let x={prev:'',percent:'',memo:''};try{x={...x,...JSON.parse(localStorage.getItem(key())||'{}')}}catch{}try{const y=JSON.parse(localStorage.getItem(P+'hypothesisGuide:'+prevDate())||'{}');if(!String(x.memo||'').trim()&&String(y.memo||'').trim())x.memo=y.memo;if((x.percent===''||x.percent==null)&&y.percent!==''&&y.percent!=null)x.percent=y.percent}catch{}return x}
- function guide(x=load()){if(x.prev===''||x.percent==='')return'';const a=Number(x.prev),pc=Math.max(0,Math.min(100,Number(x.percent)));if(!Number.isFinite(a)||!Number.isFinite(pc))return'';const v=a*(1-pc/100),m=String(x.memo||'').trim();return '前年比部門販買目安'+(Number.isInteger(v)?v:v.toFixed(1))+'万'+(m?'('+m+')':'')}
- function resize(t){if(!t||t.tagName!=='TEXTAREA')return;t.style.height='auto';t.style.height=Math.max(86,t.scrollHeight)+'px'}
- function resizeAll(){document.querySelectorAll('textarea').forEach(resize)}
- document.addEventListener('input',e=>{if(e.target&&e.target.tagName==='TEXTAREA')resize(e.target)},true);
- function install(){const ta=q('dailyHypothesis');if(!ta||q('hypothesisGuideBox')){resizeAll();return}const box=document.createElement('div');box.id='hypothesisGuideBox';box.className='saved';box.style.marginTop='10px';box.innerHTML='<div class="twoCol"><div><label>前年部門実績（万円）</label><input id="prevDeptSales" type="number" step="0.1" inputmode="decimal"></div><div><label>除外する割合（%）</label><input id="prevDeptPercent" type="number" min="0" max="100" step="1" inputmode="decimal" placeholder="例：60"></div></div><div style="margin-top:9px"><label>補足メモ</label><input id="deptGuideMemo" type="text" placeholder="例：サプライ除く"></div><div id="deptGuidePreview" class="small" style="margin-top:8px"></div>';
- ta.insertAdjacentElement('afterend',box);const x=load(),a=q('prevDeptSales'),pc=q('prevDeptPercent'),m=q('deptGuideMemo'),r=q('deptGuidePreview');a.value=x.prev||'';pc.value=x.percent??'';m.value=x.memo||'';if((x.percent!==''&&x.percent!=null)||String(x.memo||'').trim()){let current={};try{current=JSON.parse(localStorage.getItem(key())||'{}')}catch{};localStorage.setItem(key(),JSON.stringify({...current,percent:pc.value,memo:m.value}))}
- const save=()=>{const z={prev:a.value,percent:pc.value,memo:m.value};localStorage.setItem(key(),JSON.stringify(z));r.textContent=guide(z)||'前年実績から指定％を除いた金額を計算します';const line=guide(z);if(line){const cur=ta.value||'';const re=/^(?:前年比)?部門販買目安.*$/m;ta.value=re.test(cur)?cur.replace(re,line):(cur.trim()?cur.trimEnd()+'\n'+line:line);ta.dispatchEvent(new Event('input',{bubbles:true}));resize(ta)}};a.oninput=save;pc.oninput=save;m.oninput=save;r.textContent=guide(x)||'前年実績から指定％を除いた金額を計算します';resizeAll()}
- function codeToWord(c){c=Number(c);if(c===0||c===1)return'晴れ';if(c===2||c===3||c===45||c===48)return'曇り';return'雨'}
- async function weatherFor(lat,lon,ds){const today=new Date(),d=new Date(ds+'T00:00:00'),diff=(d-today)/86400000;const base=(diff>=-90&&diff<=16)?'https://api.open-meteo.com/v1/forecast':'https://archive-api.open-meteo.com/v1/archive';const u=base+'?latitude='+lat+'&longitude='+lon+'&start_date='+ds+'&end_date='+ds+'&daily=weather_code&timezone=Asia%2FTokyo';const j=await fetch(u).then(r=>r.json());return codeToWord(j.daily.weather_code[0])}
- async function fillWeatherIfBlank(){const ta=q('dailyHypothesis');if(!ta||!dateEl||!dateEl.value||ta.value.trim())return;try{const g=await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent('東京都')+'&count=1&language=ja&format=json').then(r=>r.json());const z=g.results&&g.results[0];if(!z)return;const ds=dateEl.value,py=String(Number(ds.slice(0,4))-1)+ds.slice(4),[now,prev]=await Promise.all([weatherFor(z.latitude,z.longitude,ds),weatherFor(z.latitude,z.longitude,py)]),d=new Date(ds+'T00:00:00');ta.value=(d.getMonth()+1)+'月'+d.getDate()+'日 今日:'+now+'　前年:'+prev;ta.dispatchEvent(new Event('input',{bubbles:true}));resize(ta)}catch(e){console.warn('weather fill skipped',e)}}
- function defaultTokyo(){const w=q('weatherLocation');if(w){w.value='東京都';w.readOnly=true;try{localStorage.setItem(P+'weatherLocation','東京都')}catch{}}}
- const ed=q('editMode');if(ed)new MutationObserver(()=>{install();resizeAll()}).observe(ed,{childList:true,subtree:true});
- setTimeout(()=>{defaultTokyo();install();fillWeatherIfBlank();resizeAll()},150);
- if(dateEl)dateEl.addEventListener('change',()=>setTimeout(()=>{defaultTokyo();install();fillWeatherIfBlank();resizeAll()},150));
-})();
 
 
-/* hypothesisSafeAddonV6 */
+
+
+
+
+/* hypothesisSafeAddonV7 */
 ;(()=>{
  const P='workReport:',q=id=>document.getElementById(id),dateEl=q('targetDate');
  const key=()=>P+'hypothesisGuide:'+((dateEl&&dateEl.value)||'');
  const weatherDoneKey=()=>P+'weatherFilled:'+((dateEl&&dateEl.value)||'');
+ const weatherTextKey=()=>P+'weatherText:'+((dateEl&&dateEl.value)||'');
+ let activeDate=(dateEl&&dateEl.value)||'';
  const prevDate=()=>{const d=new Date(dateEl.value+'T00:00:00');d.setDate(d.getDate()-1);return d.toISOString().slice(0,10)};
  function load(){let x={prev:'',percent:'',memo:''};try{x={...x,...JSON.parse(localStorage.getItem(key())||'{}')}}catch{}try{const y=JSON.parse(localStorage.getItem(P+'hypothesisGuide:'+prevDate())||'{}');if(!String(x.memo||'').trim()&&String(y.memo||'').trim())x.memo=y.memo;if((x.percent===''||x.percent==null)&&y.percent!==''&&y.percent!=null)x.percent=y.percent}catch{}return x}
  function guide(x=load()){if(x.prev===''||x.percent==='')return'';const a=Number(x.prev),pc=Math.max(0,Math.min(100,Number(x.percent)));if(!Number.isFinite(a)||!Number.isFinite(pc))return'';const v=a*(1-pc/100),m=String(x.memo||'').trim();return '前年比部門販買目安'+(Number.isInteger(v)?v:v.toFixed(1))+'万'+(m?'('+m+')':'')}
  function resize(t){if(!t||t.tagName!=='TEXTAREA')return;t.style.height='auto';t.style.height=Math.max(86,t.scrollHeight)+'px'}
  function resizeAll(){document.querySelectorAll('textarea').forEach(resize)}
  document.addEventListener('input',e=>{if(e.target&&e.target.tagName==='TEXTAREA')resize(e.target)},true);
+ function weatherLine(v){return (String(v||'').match(/^\d{1,2}月\d{1,2}日 今日:.*　前年:.*$/m)||[])[0]||''}
+ function rememberWeather(date){const ta=q('dailyHypothesis');if(!ta||!date)return;const line=weatherLine(ta.value);if(line){localStorage.setItem(P+'weatherText:'+date,line);localStorage.setItem(P+'weatherFilled:'+date,'1')}}
+ function restoreWeather(){const ta=q('dailyHypothesis');if(!ta||!dateEl||!dateEl.value)return false;const saved=localStorage.getItem(weatherTextKey());if(!saved)return false;const re=/^\d{1,2}月\d{1,2}日 今日:.*　前年:.*$/m;if(re.test(ta.value||''))ta.value=(ta.value||'').replace(re,saved);else if(!(ta.value||'').trim())ta.value=saved;else ta.value=saved+'\n'+ta.value;ta.dispatchEvent(new Event('input',{bubbles:true}));resize(ta);return true}
  function install(){const ta=q('dailyHypothesis');if(!ta||q('hypothesisGuideBox')){resizeAll();return}const box=document.createElement('div');box.id='hypothesisGuideBox';box.className='saved';box.style.marginTop='10px';box.innerHTML='<div class="twoCol"><div><label>前年部門実績（万円）</label><input id="prevDeptSales" type="number" step="0.1" inputmode="decimal"></div><div><label>除外する割合（%）</label><input id="prevDeptPercent" type="number" min="0" max="100" step="1" inputmode="decimal" placeholder="例：60"></div></div><div style="margin-top:9px"><label>補足メモ</label><input id="deptGuideMemo" type="text" placeholder="例：サプライ除く"></div><div id="deptGuidePreview" class="small" style="margin-top:8px"></div>';
  ta.insertAdjacentElement('afterend',box);const x=load(),a=q('prevDeptSales'),pc=q('prevDeptPercent'),m=q('deptGuideMemo'),r=q('deptGuidePreview');a.value=x.prev||'';pc.value=x.percent??'';m.value=x.memo||'';if((x.percent!==''&&x.percent!=null)||String(x.memo||'').trim()){let current={};try{current=JSON.parse(localStorage.getItem(key())||'{}')}catch{};localStorage.setItem(key(),JSON.stringify({...current,percent:pc.value,memo:m.value}))}
  const save=()=>{const z={prev:a.value,percent:pc.value,memo:m.value};localStorage.setItem(key(),JSON.stringify(z));r.textContent=guide(z)||'前年実績から指定％を除いた金額を計算します';const line=guide(z);if(line){const cur=ta.value||'';const re=/^(?:前年比)?部門販買目安.*$/m;ta.value=re.test(cur)?cur.replace(re,line):(cur.trim()?cur.trimEnd()+'\n'+line:line);ta.dispatchEvent(new Event('input',{bubbles:true}));resize(ta)}};a.oninput=save;pc.oninput=save;m.oninput=save;r.textContent=guide(x)||'前年実績から指定％を除いた金額を計算します';resizeAll()}
  function codeToWord(c){c=Number(c);if(c===0||c===1)return'晴れ';if(c===2||c===3||c===45||c===48)return'曇り';if([51,53,56,61,66,80].includes(c))return'弱雨';if([55,57,65,67,82].includes(c))return'強雨';if([71,73,75,77,85,86].includes(c))return'雪';if([95,96,99].includes(c))return'雷雨';return'雨'}
  async function weatherFor(lat,lon,ds){const today=new Date(),d=new Date(ds+'T00:00:00'),diff=(d-today)/86400000;const base=(diff>=-90&&diff<=16)?'https://api.open-meteo.com/v1/forecast':'https://archive-api.open-meteo.com/v1/archive';const u=base+'?latitude='+lat+'&longitude='+lon+'&start_date='+ds+'&end_date='+ds+'&daily=weather_code&timezone=Asia%2FTokyo';const j=await fetch(u).then(r=>r.json());return codeToWord(j.daily.weather_code[0])}
  async function fetchWeather(){const g=await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent('東京都')+'&count=1&language=ja&format=json').then(r=>r.json());const z=g.results&&g.results[0];if(!z)throw new Error('location not found');const ds=dateEl.value,py=String(Number(ds.slice(0,4))-1)+ds.slice(4),[now,prev]=await Promise.all([weatherFor(z.latitude,z.longitude,ds),weatherFor(z.latitude,z.longitude,py)]),d=new Date(ds+'T00:00:00');return (d.getMonth()+1)+'月'+d.getDate()+'日 今日:'+now+'　前年:'+prev}
- async function fillWeatherOnce(){const ta=q('dailyHypothesis');if(!ta||!dateEl||!dateEl.value||ta.value.trim()||localStorage.getItem(weatherDoneKey())==='1')return;try{ta.value=await fetchWeather();localStorage.setItem(weatherDoneKey(),'1');ta.dispatchEvent(new Event('input',{bubbles:true}));resize(ta)}catch(e){console.warn('weather fill skipped',e)}}
- async function refreshWeather(){const ta=q('dailyHypothesis');if(!ta||!dateEl||!dateEl.value)return;try{const line=await fetchWeather(),re=/^\d{1,2}月\d{1,2}日 今日:.*　前年:.*$/m;ta.value=re.test(ta.value||'')?(ta.value||'').replace(re,line):((ta.value||'').trim()?line+'\n'+ta.value:line);localStorage.setItem(weatherDoneKey(),'1');ta.dispatchEvent(new Event('input',{bubbles:true}));resize(ta);const st=q('weatherStatus');if(st){st.textContent='東京都の天気を再取得しました';st.className='status ok'}}catch(e){const st=q('weatherStatus');if(st){st.textContent='天気を取得できませんでした';st.className='status error'}}}
- function defaultTokyo(){const w=q('weatherLocation');if(w){w.value='東京都';w.readOnly=true;try{localStorage.setItem(P+'weatherLocation','東京都')}catch{}}const b=q('saveWeatherLocation');if(b&&!b.dataset.weatherV6){b.dataset.weatherV6='1';b.textContent='地域保存・天気を再取得';b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();refreshWeather()},true)}}
+ async function fillWeatherOnce(){const ta=q('dailyHypothesis');if(!ta||!dateEl||!dateEl.value)return;if(restoreWeather())return;if(ta.value.trim()||localStorage.getItem(weatherDoneKey())==='1')return;try{const line=await fetchWeather();ta.value=line;localStorage.setItem(weatherDoneKey(),'1');localStorage.setItem(weatherTextKey(),line);ta.dispatchEvent(new Event('input',{bubbles:true}));resize(ta)}catch(e){console.warn('weather fill skipped',e)}}
+ async function refreshWeather(){const ta=q('dailyHypothesis');if(!ta||!dateEl||!dateEl.value)return;try{const line=await fetchWeather(),re=/^\d{1,2}月\d{1,2}日 今日:.*　前年:.*$/m;ta.value=re.test(ta.value||'')?(ta.value||'').replace(re,line):((ta.value||'').trim()?line+'\n'+ta.value:line);localStorage.setItem(weatherDoneKey(),'1');localStorage.setItem(weatherTextKey(),line);ta.dispatchEvent(new Event('input',{bubbles:true}));resize(ta);const st=q('weatherStatus');if(st){st.textContent='東京都の天気を再取得しました';st.className='status ok'}}catch(e){const st=q('weatherStatus');if(st){st.textContent='天気を取得できませんでした';st.className='status error'}}}
+ function defaultTokyo(){const w=q('weatherLocation');if(w){w.value='東京都';w.readOnly=true;try{localStorage.setItem(P+'weatherLocation','東京都')}catch{}}const b=q('saveWeatherLocation');if(b&&!b.dataset.weatherV7){b.dataset.weatherV7='1';b.textContent='地域保存・天気を再取得';b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();refreshWeather()},true)}}
+ const ta=q('dailyHypothesis');if(ta)ta.addEventListener('input',()=>{const line=weatherLine(ta.value);if(line&&dateEl&&dateEl.value){localStorage.setItem(weatherTextKey(),line);localStorage.setItem(weatherDoneKey(),'1')}});
  const ed=q('editMode');if(ed)new MutationObserver(()=>{install();resizeAll()}).observe(ed,{childList:true,subtree:true});
- setTimeout(()=>{defaultTokyo();install();fillWeatherOnce();resizeAll()},150);
- if(dateEl)dateEl.addEventListener('change',()=>setTimeout(()=>{defaultTokyo();install();fillWeatherOnce();resizeAll()},150));
+ setTimeout(()=>{defaultTokyo();install();restoreWeather()||fillWeatherOnce();resizeAll()},150);
+ if(dateEl)dateEl.addEventListener('change',()=>{rememberWeather(activeDate);activeDate=dateEl.value;setTimeout(()=>{defaultTokyo();install();restoreWeather()||fillWeatherOnce();resizeAll()},200)});
 })();
 
 </script>
