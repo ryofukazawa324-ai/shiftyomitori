@@ -151,7 +151,7 @@ $('exportBackupBtn').onclick=exportBackup;$('importBackupFile').onchange=async e
  const weatherTextKey=()=>P+'weatherText:'+((dateEl&&dateEl.value)||'');
  let activeDate=(dateEl&&dateEl.value)||'';
  const prevDate=()=>{const d=new Date(dateEl.value+'T00:00:00');d.setDate(d.getDate()-1);return d.toISOString().slice(0,10)};
- function load(){let x={prev:'',percent:'',memo:''};try{x={...x,...JSON.parse(localStorage.getItem(key())||'{}')}}catch{}try{const y=JSON.parse(localStorage.getItem(P+'hypothesisGuide:'+prevDate())||'{}');if(!String(x.memo||'').trim()&&String(y.memo||'').trim())x.memo=y.memo;if((x.percent===''||x.percent==null)&&y.percent!==''&&y.percent!=null)x.percent=y.percent}catch{}return x}
+ function load(){let x={prev:'',percent:'',memo:''};try{x={...x,...JSON.parse(localStorage.getItem(key())||'{}')}}catch{}try{const y=JSON.parse(localStorage.getItem(P+'hypothesisGuide:'+prevDate())||'{}');if(!Object.prototype.hasOwnProperty.call(JSON.parse(localStorage.getItem(key())||'{}'),'memo')&&String(y.memo||'').trim())x.memo=y.memo;if((x.percent===''||x.percent==null)&&y.percent!==''&&y.percent!=null)x.percent=y.percent}catch{}return x}
  function guide(x=load()){if(x.prev===''||x.percent==='')return'';const a=Number(x.prev),pc=Math.max(0,Math.min(100,Number(x.percent)));if(!Number.isFinite(a)||!Number.isFinite(pc))return'';const v=a*(1-pc/100),m=String(x.memo||'').trim();return '前年比部門販買目安'+(Number.isInteger(v)?v:v.toFixed(1))+'万'+(m?'('+m+')':'')}
  function resize(t){if(!t||t.tagName!=='TEXTAREA')return;t.style.height='auto';t.style.height=Math.max(86,t.scrollHeight)+'px'}
  function resizeAll(){document.querySelectorAll('textarea').forEach(resize)}
